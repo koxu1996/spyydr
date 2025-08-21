@@ -1,0 +1,70 @@
+= 🕷️ spyydr — Functional Overview
+
+== 🧱 1. Core (Minimum Viable Crawler) — ✅ Implemented in v1
+
+These are required for spyydr to be a functioning web crawler.
+
+[cols="1,2", options="header"]
+|===
+| Functionality | Description
+| ✅ Seed URL input | The crawler starts from a user-provided URL (spyydr https://example.com).
+| ✅ URL fetching | Uses reqwest to fetch HTML content.
+| ✅ Link extraction | Parses and resolves `<a href>` links from HTML using a parser like scraper.
+| ✅ Deduplication | Tracks visited URLs to avoid revisiting.
+| ✅ Printing output | Prints the visited URL and list of discovered links.
+| ✅ Max crawl limit (--max) | Stops crawling after visiting N unique URLs.
+| ✅ Concurrency (--concurrency) | Fetches multiple pages in parallel (with a configurable limit).
+| ✅ Timeout handling | Times out slow requests (configurable or default).
+| ✅ Basic HTTP error handling | Logs non-200 responses; skips invalid or unreachable URLs.
+| ✅ Graceful shutdown | Cancels ongoing tasks cleanly if interrupted.
+|===
+
+== 🧰 2. Important Enhancements — 🛠️ Planned (Open for Improvement)
+
+These aren’t strictly required for MVP but are important for realistic use, performance, or modularity.
+
+[cols="1,2", options="header"]
+|===
+| Functionality | Description
+| 🛠️ User-Agent setting (--user-agent) | Some websites require known user-agents to serve content.
+| 🛠️ Whitelist (--whitelist) | Crawl only URLs that match specified domains or patterns.
+| 🛠️ Blacklist (--blacklist) | Skip URLs from known domains or patterns (e.g. youtube.com).
+| 🛠️ Proxy support (--proxy) | Route all traffic through an HTTP proxy (e.g. for anonymity or corporate use).
+| 🛠️ Retry on 429 (--retry) | Respect Retry-After headers, optionally backoff and retry throttled requests.
+| 🛠️ Output format (--json) | Emit structured JSON instead of plain text for better scripting/logging.
+| 🛠️ Depth limit (--depth) | Avoid going too deep in the crawl tree (e.g. only 3 levels deep).
+| 🛠️ Request filtering (e.g. GET only) | Don’t follow `<form>` or JavaScript-generated links.
+| 🛠️ Redirect handling | Follow HTTP redirects properly, respecting limits.
+| 🛠️ Persistent crawl state | Store visited URLs and link graph to disk for pause/resume.
+|===
+
+== 🧪 3. Fuzzing-Inspired Advanced Features — 🛠️ Future Ideas (Inspired by Fuzzing)
+
+These extend spyydr from a basic crawler to an exploratory tool or input generator, akin to a fuzzer.
+
+[cols="1,2", options="header"]
+|===
+| Functionality | Description
+| 🛠️ Corpus directory (--corpus-dir) | Save crawled pages/URLs to disk like a fuzzer corpus.
+| 🛠️ URL mutation / path fuzzing (--mutate-paths) | Try variants of discovered URLs (e.g. path mangling, query mutation).
+| 🛠️ Content similarity detection | Avoid crawling similar pages repeatedly (like duplicate coverage in fuzzers).
+| 🛠️ Heuristic crawl strategies (`--strategy bfs dfs`) | Implement different crawl strategies like breadth-first or depth-first search.
+| 🛠️ Custom “feedback” triggers (--exit-on, --match-keyword) | Exit or log if specific content is found.
+| 🛠️ Coverage metrics | Track link depth, domain spread, etc.
+|===
+
+== ⛔ 4. Skipped / Out of Scope — 🚫 Not Planned for Now
+
+These are intentionally skipped in v1 due to complexity, irrelevance to the task, or being explicitly forbidden.
+
+[cols="1,2", options="header"]
+|===
+| Functionality | Reason
+| 🚫 JavaScript execution / DOM rendering | Requires a headless browser; breaks the "no frameworks" rule.
+| 🚫 Cloudflare / CAPTCHA bypass | Ethically and technically out of scope.
+| 🚫 robots.txt support | Can be considered later, but not required initially.
+| 🚫 Form submission / dynamic navigation | Out of scope; focus is on static crawling only.
+| 🚫 Headless API mode (serve) | Would require building an async web server; not needed yet.
+| 🚫 Plugin system | Great idea (e.g. for .wasm-based extensions), but not realistic for v1.
+| 🚫 Distributed crawling | Multi-machine crawl coordination is a separate problem space.
+|===
