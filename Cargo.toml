@@ -10,4 +10,4 @@ path = "./src/bin/main.rs"
 [dependencies]
 
 # CLI.
-clap = { version = "4.5.45", default-features = false, features = [] }
+clap = { version = "4.5.45", default-features = false, features = ["std", "derive", "help", "usage", "suggestions", "color"] }
