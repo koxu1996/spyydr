@@ -3,6 +3,10 @@ name = "spyydr"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "spyydr-cli"
+path = "./src/bin/main.rs"
+
 [dependencies]
 
 # CLI.
