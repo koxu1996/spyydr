@@ -10,7 +10,7 @@ impl<F: Fetcher> Engine<F> {
     Engine { fetcher }
   }
 
-  pub async fn run(&self, url: &str) -> Result<(), Error> {
+  pub async fn run_once(&self, url: &str) -> Result<(), Error> {
     let url = url::Url::parse(url).map_err(|e| Error::Unexpected(e.to_string()))?;
     let fetched_content = self.fetcher.fetch(&url).await?;
 
