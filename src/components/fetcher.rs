@@ -24,3 +24,41 @@ impl Fetcher for NoopFetcher {
     })
   }
 }
+
+/// Reqwest-based fetcher.
+#[derive(Clone)]
+pub struct ReqwestFetcher {
+  client: reqwest::Client,
+}
+
+impl ReqwestFetcher {
+  pub fn new() -> Self {
+    ReqwestFetcher {
+      client: reqwest::Client::new(),
+    }
+  }
+}
+
+impl Fetcher for ReqwestFetcher {
+  async fn fetch(&self, url: &Url) -> Result<FetchedPage, Error> {
+    let response = self
+      .client
+      .get(url.as_str())
+      .send()
+      .await
+      .map_err(|e| Error::Unexpected(format!("Failed to fetch {}: {}", url, e)))?;
+
+    let status = response.status().as_u16();
+    let body = response
+      .text()
+      .await
+      .map_err(|e| Error::Unexpected(format!("Failed to read body from {}: {}", url, e)))?;
+
+    Ok(FetchedPage {
+      url: url.clone(),
+      status,
+      body,
+      // elapsed: Duration::from_millis(0), // Placeholder for elapsed time
+    })
+  }
+}
