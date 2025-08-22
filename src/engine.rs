@@ -12,9 +12,9 @@ impl<F: Fetcher> Engine<F> {
 
   pub async fn run(&self, url: &str) -> Result<(), Error> {
     let url = url::Url::parse(url).map_err(|e| Error::Unexpected(e.to_string()))?;
-    let fetched_page = self.fetcher.fetch(&url).await?;
+    let fetched_content = self.fetcher.fetch(&url).await?;
 
-    println!("Fetched page: {:?}", fetched_page);
+    println!("Fetched content of {:?}", fetched_content.url);
 
     Ok(())
   }

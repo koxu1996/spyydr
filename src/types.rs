@@ -1,7 +1,7 @@
 use url::Url;
 
 #[derive(Clone, Debug)]
-pub struct FetchedPage {
+pub struct FetchedContent {
   pub url: Url,
   pub status: u16,
   pub body: String,
