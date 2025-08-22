@@ -12,7 +12,7 @@ async fn main() -> eyre::Result<()> {
   let args = Cli::parse();
 
   println!("Starting crawl at: {}", args.start_url);
-  let fetcher = spyydr::components::fetcher::NoopFetcher;
+  let fetcher = spyydr::components::fetcher::ReqwestFetcher::new();
   let engine = spyydr::engine::Engine::new(fetcher);
   engine.run(&args.start_url).await?;
 
