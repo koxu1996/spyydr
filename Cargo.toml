@@ -9,6 +9,9 @@ path = "./src/bin/main.rs"
 
 [dependencies]
 
+# Asynchronous runtime.
+tokio = { version = "1.47.1", default-features = false, features = ["rt-multi-thread", "macros"] }
+
 # CLI.
 clap = { version = "4.5.45", default-features = false, features = ["std", "derive", "help", "usage", "suggestions", "color"] }
 
