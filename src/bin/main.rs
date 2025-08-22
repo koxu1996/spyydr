@@ -5,7 +5,8 @@ use crate::cli::Cli;
 
 mod cli;
 
-fn main() -> eyre::Result<()> {
+#[tokio::main]
+async fn main() -> eyre::Result<()> {
   color_eyre::install()?;
 
   let args = Cli::parse();
