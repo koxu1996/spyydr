@@ -44,10 +44,10 @@ impl<F: Fetcher, E: Extractor, Fr: Frontier> Engine<F, E, Fr> {
     let task_depth = task.depth;
 
     let fetched_content = self.fetcher.fetch(&task_url).await?;
-    println!("Fetched content of {:?}", fetched_content.url);
+    tracing::info!("Fetched content of {:?}", fetched_content.url);
 
     let links = self.extractor.find_links(&fetched_content)?;
-    println!("Extracted {} links", links.len());
+    tracing::info!("Extracted {} links", links.len());
 
     // For now just put all links into the frontier.
     // TODO: Implement policies etc.
