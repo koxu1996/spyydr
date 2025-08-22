@@ -7,3 +7,10 @@ pub struct FetchedContent {
   pub body: String,
   // pub elapsed: Duration,
 }
+
+#[derive(Clone, Debug)]
+pub struct CrawlTask {
+  pub url: Url,
+  pub depth: u32,
+  pub parent: Option<Url>,
+}
