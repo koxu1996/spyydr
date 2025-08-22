@@ -1312,6 +1312,7 @@ dependencies = [
  "scraper",
  "thiserror",
  "tokio",
+ "tracing",
  "url",
 ]
 
