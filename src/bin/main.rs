@@ -13,7 +13,8 @@ async fn main() -> eyre::Result<()> {
 
   println!("Starting crawl at: {}", args.start_url);
   let fetcher = spyydr::components::fetcher::ReqwestFetcher::new();
-  let engine = spyydr::engine::Engine::new(fetcher);
+  let extractor = spyydr::components::extractor::HtmlExtractor::default();
+  let engine = spyydr::engine::Engine::new(fetcher, extractor);
   engine.run_once(&args.start_url).await?;
 
   Err(spyydr::error::Error::Unexpected("test error".to_string()))?
