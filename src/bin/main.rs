@@ -29,7 +29,8 @@ async fn main() -> eyre::Result<()> {
   let frontier = spyydr::components::frontier::BfsFrontier::new();
   let canonicalizer = spyydr::components::canonicalizer::NoQueryCanonicalizer::default();
   let policy = spyydr::components::policy::SimplePolicy::new(None, None, None);
-  let mut engine = spyydr::engine::Engine::new(fetcher, extractor, frontier, canonicalizer, policy);
+  let registry = spyydr::components::registry::InMemoryRegistry::new();
+  let mut engine = spyydr::engine::Engine::new(fetcher, extractor, frontier, canonicalizer, policy, registry);
   engine.init(&args.start_url)?;
   engine.run_once().await?;
   engine.run_once().await?;

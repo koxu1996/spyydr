@@ -3,24 +3,27 @@ use crate::components::extractor::Extractor;
 use crate::components::fetcher::Fetcher;
 use crate::components::frontier::Frontier;
 use crate::components::policy::Policy;
+use crate::components::registry::Registry;
 use crate::error::Error;
 
-pub struct Engine<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy> {
+pub struct Engine<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy, R: Registry> {
   fetcher: F,
   extractor: E,
   frontier: Fr,
   canonicalizer: C,
   policy: P,
+  registry: R,
 }
 
-impl<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy> Engine<F, E, Fr, C, P> {
-  pub fn new(fetcher: F, extractor: E, frontier: Fr, canonicalizer: C, policy: P) -> Self {
+impl<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy, R: Registry> Engine<F, E, Fr, C, P, R> {
+  pub fn new(fetcher: F, extractor: E, frontier: Fr, canonicalizer: C, policy: P, registry: R) -> Self {
     Engine {
       fetcher,
       extractor,
       frontier,
       canonicalizer,
       policy,
+      registry,
     }
   }
 
@@ -75,8 +78,11 @@ impl<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy> Engine
       })
       .collect::<Vec<_>>();
 
-    // Put new tasks into the frontier.
-    let tasks = admitted_links.iter().map(|link| {
+    // Put admitted links into the registry.
+    let new_links = self.registry.register_many(admitted_links.iter());
+
+    // Put all new links into the frontier.
+    let tasks = new_links.iter().map(|link| {
       let url = link.clone();
       crate::types::CrawlTask {
         url,
