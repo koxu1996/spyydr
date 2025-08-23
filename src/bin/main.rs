@@ -36,5 +36,7 @@ async fn main() -> eyre::Result<()> {
   engine.run_once().await?;
   engine.run_once().await?;
 
-  Err(spyydr::error::Error::Unexpected("test error".to_string()))?
+  // Err(spyydr::error::Error::Unexpected("test error".to_string()))?
+
+  Ok(())
 }
