@@ -52,9 +52,14 @@ impl<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer> Engine<F, E, Fr, 
     let links = self.extractor.find_links(&fetched_content)?;
     tracing::info!("Extracted {} links", links.len());
 
-    // For now just put all links into the frontier.
-    // TODO: Implement policies etc.
-    let tasks = links.iter().map(|link| {
+    // Canonicalize the links.
+    let canonical_links = links
+      .iter()
+      .map(|link| self.canonicalizer.canonicalize(link))
+      .collect::<Result<Vec<_>, _>>()?;
+
+    // Put new tasks into the frontier.
+    let tasks = canonical_links.iter().map(|link| {
       let url = link.clone();
       crate::types::CrawlTask {
         url,
