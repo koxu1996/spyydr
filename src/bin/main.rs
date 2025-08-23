@@ -37,11 +37,13 @@ async fn main() -> eyre::Result<()> {
     canonicalizer,
     policy,
     registry,
-  );
-  engine.init(&args.start_url)?;
-  engine.run_once().await?;
-  engine.run_once().await?;
-  engine.run_once().await?;
+  )
+  .await;
+  engine.init(&args.start_url).await?;
+  for _ in 0..3 {
+    let task = engine.get_next_task().await?.unwrap();
+    engine.run_once(task).await?;
+  }
 
   // Err(spyydr::error::Error::Unexpected("test error".to_string()))?
 

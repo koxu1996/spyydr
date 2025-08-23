@@ -1,3 +1,9 @@
+use std::marker::PhantomData;
+
+use tokio::task::JoinHandle;
+
+use crate::broker::BrokerWorker;
+use crate::broker::CrawlBrokerService;
 use crate::components::canonicalizer::Canonicalizer;
 use crate::components::extractor::Extractor;
 use crate::components::fetcher::Fetcher;
@@ -5,21 +11,34 @@ use crate::components::frontier::Frontier;
 use crate::components::policy::Policy;
 use crate::components::registry::Registry;
 use crate::error::Error;
+use crate::types::CrawlTask;
+
+/// Default capacity for the MPSC channel used by the broker.
+const DEFAULT_BROKER_CAPACITY: usize = 8192;
 
 pub struct Engine<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy, R: Registry>
 {
   fetcher: F,
   extractor: E,
-  frontier: Fr,
   canonicalizer: C,
   policy: P,
   registry: R,
+  // Broker is used to distribute tasks (wraps frontier).
+  broker_frontier_type: PhantomData<Fr>,
+  broker_handle: JoinHandle<()>,
+  broker_svc: CrawlBrokerService,
 }
 
-impl<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy, R: Registry>
-  Engine<F, E, Fr, C, P, R>
+impl<
+  F: Fetcher,
+  E: Extractor,
+  Fr: Frontier + Send + 'static,
+  C: Canonicalizer,
+  P: Policy,
+  R: Registry,
+> Engine<F, E, Fr, C, P, R>
 {
-  pub fn new(
+  pub async fn new(
     fetcher: F,
     extractor: E,
     frontier: Fr,
@@ -27,17 +46,21 @@ impl<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy, R: Reg
     policy: P,
     registry: R,
   ) -> Self {
+    let (broker_svc, rx) = CrawlBrokerService::new_bounded(DEFAULT_BROKER_CAPACITY).await;
+    let broker_handle = BrokerWorker::spawn(rx, frontier);
     Engine {
       fetcher,
       extractor,
-      frontier,
       canonicalizer,
       policy,
       registry,
+      broker_handle,
+      broker_svc,
+      broker_frontier_type: PhantomData::default(),
     }
   }
 
-  pub fn init(&mut self, start_url: &str) -> Result<(), Error> {
+  pub async fn init(&mut self, start_url: &str) -> Result<(), Error> {
     // Initialize the frontier with the starting URL.
     let url = match url::Url::parse(start_url) {
       Ok(url) => url,
@@ -48,17 +71,22 @@ impl<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy, R: Reg
       depth: 0,     // Starting depth.
       parent: None, // No parent for the initial task.
     };
-    self.frontier.add(task);
+
+    // Push the start task to the frontier (via broker).
+    self.broker_svc.push_task(task).await.unwrap(); // TODO: Handle error properly.
 
     Ok(())
   }
 
-  pub async fn run_once(&mut self) -> Result<(), Error> {
-    // Get next item from the frontier.
-    let task = match self.frontier.pop() {
-      Some(task) => task,
-      None => return Err(Error::Unexpected("No tasks in the frontier".to_string())),
-    };
+  // Get next item from the frontier (via broker).
+  pub async fn get_next_task(&self) -> Result<Option<CrawlTask>, Error> {
+    let maybe_task = self.broker_svc.pop_task().await.unwrap(); // TODO: Handle error properly.
+
+    Ok(maybe_task)
+  }
+
+  /// Runs core logic of task processing.
+  pub async fn run_once(&self, task: CrawlTask) -> Result<(), Error> {
     let task_url = task.url;
     let task_depth = task.depth;
 
@@ -103,7 +131,7 @@ impl<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy, R: Reg
       }
     });
     for task in tasks {
-      self.frontier.add(task);
+      self.broker_svc.push_task(task).await.unwrap(); // TODO: Handle error properly.
     }
 
     Ok(())
