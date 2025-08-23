@@ -55,6 +55,8 @@ impl<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy, R: Reg
     let fetched_content = self.fetcher.fetch(&task_url).await?;
     tracing::info!("Fetched content of {:?}", fetched_content.url);
 
+    // TODO: Mark it as visited in the registry!
+
     let links = self.extractor.find_links(&fetched_content)?;
     tracing::info!("Extracted {} links", links.len());
 
