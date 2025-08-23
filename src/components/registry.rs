@@ -1,3 +1,4 @@
+use dashmap::DashMap;
 use url::Url;
 
 use crate::types::RegistryItemStatus;
@@ -29,5 +30,65 @@ pub trait Registry: Send + Sync {
       }
     }
     out
+  }
+}
+
+#[derive(Default)]
+pub struct InMemoryRegistry {
+  map: DashMap<String, RegistryItemStatus>,
+}
+
+impl InMemoryRegistry {
+  pub fn new() -> Self {
+    Self {
+      map: DashMap::new(),
+    }
+  }
+
+  /// Optional helpers for metrics
+  pub fn counts(&self) -> (usize, usize) {
+    let (mut disc, mut fetch) = (0, 0);
+    for v in self.map.iter() {
+      match *v.value() {
+        RegistryItemStatus::Discovered => disc += 1,
+        RegistryItemStatus::Fetched => fetch += 1,
+      }
+    }
+    (disc, fetch)
+  }
+}
+
+impl Registry for InMemoryRegistry {
+  fn register(&self, url: &Url) -> bool {
+    // Insert returns old value if existed; we want to return true only if it was NEW.
+    match self.map.entry(url.as_str().to_owned()) {
+      dashmap::mapref::entry::Entry::Occupied(_) => false,
+      dashmap::mapref::entry::Entry::Vacant(v) => {
+        v.insert(RegistryItemStatus::Discovered);
+        true
+      }
+    }
+  }
+
+  fn mark_fetched(&self, url: &Url) -> bool {
+    use dashmap::mapref::entry::Entry;
+    match self.map.entry(url.as_str().to_owned()) {
+      Entry::Occupied(mut e) => {
+        if *e.get() != RegistryItemStatus::Fetched {
+          e.insert(RegistryItemStatus::Fetched);
+          true // Changed Discovered -> Fetched.
+        } else {
+          false // Already Fetched.
+        }
+      }
+      Entry::Vacant(v) => {
+        v.insert(RegistryItemStatus::Fetched);
+        true // Newly inserted as Fetched
+      }
+    }
+  }
+
+  fn status(&self, url: &Url) -> Option<RegistryItemStatus> {
+    self.map.get(url.as_str()).map(|v| *v.value())
   }
 }
