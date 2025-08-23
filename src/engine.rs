@@ -1,20 +1,23 @@
+use crate::components::canonicalizer::Canonicalizer;
 use crate::components::extractor::Extractor;
 use crate::components::fetcher::Fetcher;
 use crate::components::frontier::Frontier;
 use crate::error::Error;
 
-pub struct Engine<F: Fetcher, E: Extractor, Fr: Frontier> {
+pub struct Engine<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer> {
   fetcher: F,
   extractor: E,
   frontier: Fr,
+  canonicalizer: C,
 }
 
-impl<F: Fetcher, E: Extractor, Fr: Frontier> Engine<F, E, Fr> {
-  pub fn new(fetcher: F, extractor: E, frontier: Fr) -> Self {
+impl<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer> Engine<F, E, Fr, C> {
+  pub fn new(fetcher: F, extractor: E, frontier: Fr, canonicalizer: C) -> Self {
     Engine {
       fetcher,
       extractor,
       frontier,
+      canonicalizer,
     }
   }
 
