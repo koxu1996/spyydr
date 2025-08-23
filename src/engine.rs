@@ -2,22 +2,25 @@ use crate::components::canonicalizer::Canonicalizer;
 use crate::components::extractor::Extractor;
 use crate::components::fetcher::Fetcher;
 use crate::components::frontier::Frontier;
+use crate::components::policy::Policy;
 use crate::error::Error;
 
-pub struct Engine<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer> {
+pub struct Engine<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy> {
   fetcher: F,
   extractor: E,
   frontier: Fr,
   canonicalizer: C,
+  policy: P,
 }
 
-impl<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer> Engine<F, E, Fr, C> {
-  pub fn new(fetcher: F, extractor: E, frontier: Fr, canonicalizer: C) -> Self {
+impl<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy> Engine<F, E, Fr, C, P> {
+  pub fn new(fetcher: F, extractor: E, frontier: Fr, canonicalizer: C, policy: P) -> Self {
     Engine {
       fetcher,
       extractor,
       frontier,
       canonicalizer,
+      policy,
     }
   }
 
@@ -58,8 +61,22 @@ impl<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer> Engine<F, E, Fr, 
       .map(|link| self.canonicalizer.canonicalize(link))
       .collect::<Result<Vec<_>, _>>()?;
 
+    // Check against the policy.
+    let admitted_links = canonical_links
+      .iter()
+      .filter_map(|link| {
+        let verdict = self.policy.evaluate(link, &task_url, task_depth);
+        if verdict.allowed {
+          Some(link.clone())
+        } else {
+          tracing::warn!("Link {} denied by policy: {}", link, verdict.reason);
+          None
+        }
+      })
+      .collect::<Vec<_>>();
+
     // Put new tasks into the frontier.
-    let tasks = canonical_links.iter().map(|link| {
+    let tasks = admitted_links.iter().map(|link| {
       let url = link.clone();
       crate::types::CrawlTask {
         url,
