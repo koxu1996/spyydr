@@ -9,6 +9,26 @@ pub struct FetchedContent {
 }
 
 #[derive(Clone, Debug)]
+pub struct PolicyVerdict {
+  pub allowed: bool,
+  pub reason: &'static str,
+}
+
+impl PolicyVerdict {
+  pub const ALLOW: Self = Self {
+    allowed: true,
+    reason: "",
+  };
+
+  pub fn deny(reason: &'static str) -> Self {
+    Self {
+      allowed: false,
+      reason,
+    }
+  }
+}
+
+#[derive(Clone, Debug)]
 pub struct CrawlTask {
   pub url: Url,
   pub depth: u32,
