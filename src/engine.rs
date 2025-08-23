@@ -6,7 +6,8 @@ use crate::components::policy::Policy;
 use crate::components::registry::Registry;
 use crate::error::Error;
 
-pub struct Engine<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy, R: Registry> {
+pub struct Engine<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy, R: Registry>
+{
   fetcher: F,
   extractor: E,
   frontier: Fr,
@@ -15,8 +16,17 @@ pub struct Engine<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: P
   registry: R,
 }
 
-impl<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy, R: Registry> Engine<F, E, Fr, C, P, R> {
-  pub fn new(fetcher: F, extractor: E, frontier: Fr, canonicalizer: C, policy: P, registry: R) -> Self {
+impl<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: Policy, R: Registry>
+  Engine<F, E, Fr, C, P, R>
+{
+  pub fn new(
+    fetcher: F,
+    extractor: E,
+    frontier: Fr,
+    canonicalizer: C,
+    policy: P,
+    registry: R,
+  ) -> Self {
     Engine {
       fetcher,
       extractor,

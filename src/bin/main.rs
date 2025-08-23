@@ -30,7 +30,14 @@ async fn main() -> eyre::Result<()> {
   let canonicalizer = spyydr::components::canonicalizer::NoQueryCanonicalizer::default();
   let policy = spyydr::components::policy::SimplePolicy::new(None, None, None);
   let registry = spyydr::components::registry::InMemoryRegistry::new();
-  let mut engine = spyydr::engine::Engine::new(fetcher, extractor, frontier, canonicalizer, policy, registry);
+  let mut engine = spyydr::engine::Engine::new(
+    fetcher,
+    extractor,
+    frontier,
+    canonicalizer,
+    policy,
+    registry,
+  );
   engine.init(&args.start_url)?;
   engine.run_once().await?;
   engine.run_once().await?;
