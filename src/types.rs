@@ -28,6 +28,12 @@ impl PolicyVerdict {
   }
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum RegistryItemStatus {
+  Discovered,
+  Fetched,
+}
+
 #[derive(Clone, Debug)]
 pub struct CrawlTask {
   pub url: Url,
