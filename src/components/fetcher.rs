@@ -26,17 +26,9 @@ impl Fetcher for NoopFetcher {
 }
 
 /// Reqwest-based fetcher.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct ReqwestFetcher {
   client: reqwest::Client,
-}
-
-impl ReqwestFetcher {
-  pub fn new() -> Self {
-    ReqwestFetcher {
-      client: reqwest::Client::new(),
-    }
-  }
 }
 
 impl Fetcher for ReqwestFetcher {

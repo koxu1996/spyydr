@@ -51,10 +51,10 @@ impl SimplePolicy {
 impl Policy for SimplePolicy {
   fn evaluate(&self, candidate: &Url, _from: &Url, depth: u32) -> PolicyVerdict {
     // Check crawling depth.
-    if let Some(md) = self.max_depth {
-      if depth > md {
-        return PolicyVerdict::deny("depth");
-      }
+    if let Some(md) = self.max_depth
+      && depth > md
+    {
+      return PolicyVerdict::deny("depth");
     }
 
     // Check against the whitelist and blacklist.

@@ -29,7 +29,7 @@ impl<Fr: Frontier + Send + 'static, R: Registry> Engine<Fr, R> {
       registry,
       broker_handle,
       broker_svc,
-      broker_frontier_type: PhantomData::default(),
+      broker_frontier_type: PhantomData,
     }
   }
 

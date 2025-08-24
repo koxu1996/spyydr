@@ -26,10 +26,10 @@ async fn main() -> eyre::Result<()> {
   let args = Cli::parse();
 
   println!("Starting crawl at: {}", args.start_url);
-  let fetcher = spyydr::components::fetcher::ReqwestFetcher::new();
-  let extractor = spyydr::components::extractor::HtmlExtractor::default();
-  let frontier = spyydr::components::frontier::BfsFrontier::new();
-  let canonicalizer = spyydr::components::canonicalizer::NoQueryCanonicalizer::default();
+  let fetcher = spyydr::components::fetcher::ReqwestFetcher::default();
+  let extractor = spyydr::components::extractor::HtmlExtractor;
+  let frontier = spyydr::components::frontier::BfsFrontier::default();
+  let canonicalizer = spyydr::components::canonicalizer::NoQueryCanonicalizer;
   let policy = spyydr::components::policy::SimplePolicy::new(None, None, None);
   let registry = Arc::new(spyydr::components::registry::InMemoryRegistry::new());
 

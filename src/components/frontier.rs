@@ -12,19 +12,16 @@ pub trait Frontier {
 
   /// Current number of pending requests.
   fn len(&self) -> usize;
+
+  /// Check if the frontier is empty.
+  fn is_empty(&self) -> bool {
+    self.len() == 0
+  }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BfsFrontier {
   deque: VecDeque<CrawlTask>,
-}
-
-impl BfsFrontier {
-  pub fn new() -> Self {
-    Self {
-      deque: VecDeque::new(),
-    }
-  }
 }
 
 impl Frontier for BfsFrontier {
