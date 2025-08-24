@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use clap::Parser;
 use color_eyre::eyre;
 use tracing_subscriber::layer::SubscriberExt;
@@ -29,7 +31,7 @@ async fn main() -> eyre::Result<()> {
   let frontier = spyydr::components::frontier::BfsFrontier::new();
   let canonicalizer = spyydr::components::canonicalizer::NoQueryCanonicalizer::default();
   let policy = spyydr::components::policy::SimplePolicy::new(None, None, None);
-  let registry = spyydr::components::registry::InMemoryRegistry::new();
+  let registry = Arc::new(spyydr::components::registry::InMemoryRegistry::new());
   let mut engine = spyydr::engine::Engine::new(
     fetcher,
     extractor,

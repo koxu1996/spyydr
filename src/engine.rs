@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 use tokio::task::JoinHandle;
 
@@ -22,7 +23,8 @@ pub struct Engine<F: Fetcher, E: Extractor, Fr: Frontier, C: Canonicalizer, P: P
   extractor: E,
   canonicalizer: C,
   policy: P,
-  registry: R,
+  // Shared registry for all agents.
+  registry: Arc<R>,
   // Broker is used to distribute tasks (wraps frontier).
   broker_frontier_type: PhantomData<Fr>,
   broker_handle: JoinHandle<()>,
@@ -44,7 +46,7 @@ impl<
     frontier: Fr,
     canonicalizer: C,
     policy: P,
-    registry: R,
+    registry: Arc<R>,
   ) -> Self {
     let (broker_svc, rx) = CrawlBrokerService::new_bounded(DEFAULT_BROKER_CAPACITY).await;
     let broker_handle = BrokerWorker::spawn(rx, frontier);
