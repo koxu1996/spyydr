@@ -48,7 +48,7 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
   }
 
   /// Runs core logic of task processing.
-  pub async fn run_once(&self, task: CrawlTask) -> Result<(), Error> {
+  pub async fn process_task(&self, task: CrawlTask) -> Result<(), Error> {
     let task_url = task.url;
     let task_depth = task.depth;
 
@@ -97,5 +97,27 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
     }
 
     Ok(())
+  }
+
+  // Run crawling loop.
+  pub async fn run_infinite_loop(&self) {
+    loop {
+      let maybe_task = self.get_next_task().await;
+      match maybe_task {
+        Ok(Some(task)) => {
+          if let Err(e) = self.process_task(task).await {
+            tracing::error!("Error processing task: {}", e);
+          }
+        }
+        Ok(None) => {
+          tracing::info!("No more tasks in the frontier, waiting for new tasks...");
+          tokio::time::sleep(tokio::time::Duration::from_secs(1)).await; // Sleep before checking again.
+        }
+        Err(e) => {
+          tracing::error!("Error getting next task: {}", e);
+          break; // Exit on error.
+        }
+      }
+    }
   }
 }
