@@ -79,6 +79,7 @@ impl<
   }
 
   // Get next item from the frontier (via broker).
+  /// CAUTION: This code is already moved to agent.
   pub async fn get_next_task(&self) -> Result<Option<CrawlTask>, Error> {
     let maybe_task = self.broker_svc.pop_task().await.unwrap(); // TODO: Handle error properly.
 
@@ -86,6 +87,7 @@ impl<
   }
 
   /// Runs core logic of task processing.
+  /// CAUTION: This code is already moved to agent.
   pub async fn run_once(&self, task: CrawlTask) -> Result<(), Error> {
     let task_url = task.url;
     let task_depth = task.depth;
