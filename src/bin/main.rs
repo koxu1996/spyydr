@@ -32,19 +32,32 @@ async fn main() -> eyre::Result<()> {
   let canonicalizer = spyydr::components::canonicalizer::NoQueryCanonicalizer::default();
   let policy = spyydr::components::policy::SimplePolicy::new(None, None, None);
   let registry = Arc::new(spyydr::components::registry::InMemoryRegistry::new());
-  let mut engine = spyydr::engine::Engine::new(
-    fetcher,
-    extractor,
-    frontier,
-    canonicalizer,
-    policy,
-    registry,
-  )
-  .await;
+
+  let mut engine = spyydr::engine::Engine::new(frontier, registry.clone()).await;
+  let broker_svc = engine.get_broker_svc().clone();
+  let registry = engine.get_registry();
+
   engine.init(&args.start_url).await?;
-  for _ in 0..3 {
-    let task = engine.get_next_task().await?.unwrap();
-    engine.run_once(task).await?;
+  let mut agent_handles = vec![];
+  for _agent_id in 0..1 {
+    let agent = spyydr::agent::Agent::new(
+      fetcher.clone(),
+      extractor.clone(),
+      canonicalizer.clone(),
+      policy.clone(),
+      registry.clone(),
+      broker_svc.clone(),
+    )
+    .await;
+    let handle = tokio::spawn(async move {
+      agent.run_infinite_loop().await;
+    });
+    agent_handles.push(handle);
+  }
+
+  // Wait for handles - currently never ending.
+  for handle in agent_handles {
+    handle.await.unwrap();
   }
 
   // Err(spyydr::error::Error::Unexpected("test error".to_string()))?
