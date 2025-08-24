@@ -3,7 +3,7 @@ use url::Url;
 
 use crate::types::RegistryItemStatus;
 
-pub trait Registry: Send + Sync {
+pub trait Registry {
   /// Insert as Discovered. Returns true if it was not present before.
   fn register(&self, url: &Url) -> bool;
 

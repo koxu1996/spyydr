@@ -3,7 +3,7 @@ use url::Url;
 use crate::error::Error;
 
 /// Converts URLs to a canonical form.
-pub trait Canonicalizer: Send + Sync {
+pub trait Canonicalizer {
   fn canonicalize(&self, url: &Url) -> Result<Url, Error>;
 }
 
