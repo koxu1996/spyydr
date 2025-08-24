@@ -1,3 +1,4 @@
+pub mod agent;
 pub mod broker;
 pub mod components;
 pub mod engine;
