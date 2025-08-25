@@ -55,7 +55,8 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
     let fetched_content = self.fetcher.fetch(&task_url).await?;
     tracing::info!("Fetched content of {:?}", fetched_content.url);
 
-    // TODO: Mark it as visited in the registry!
+    // Mark item as visited in the registry.
+    self.registry.mark_fetched(&task_url);
 
     let links = self.extractor.find_links(&fetched_content)?;
     tracing::info!("Extracted {} links", links.len());
