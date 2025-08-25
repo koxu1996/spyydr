@@ -10,5 +10,5 @@ pub mod frontier;
 // Registry of URLs, shared by all agents.
 pub mod registry;
 
-// Reporting events.
-pub mod reporter;
+// Monitoring events.
+pub mod monitor;
