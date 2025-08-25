@@ -5,7 +5,7 @@ use crate::types::FetchedContent;
 
 /// Fetches static content of web pages.
 pub trait Fetcher {
-  /// Fetch a URL and return a Page even for non-2xx (so Reporter can print).
+  /// Fetch an URL and return a response, even for non-2xx.
   #[allow(async_fn_in_trait)]
   async fn fetch(&self, url: &Url) -> Result<FetchedContent, Error>;
 }
