@@ -27,11 +27,18 @@ pub struct BfsFrontier {
 
 impl Frontier for BfsFrontier {
   fn add(&mut self, req: CrawlTask) {
+    tracing::debug!(url=%req.url, depth=req.depth, "adding to frontier");
     self.deque.push_back(req);
   }
 
   fn pop(&mut self) -> Option<CrawlTask> {
-    self.deque.pop_front()
+    if let Some(task) = self.deque.pop_front() {
+      tracing::debug!(url=%task.url, depth=task.depth, "popping from frontier");
+      return Some(task);
+    }
+
+    tracing::trace!("no tasks in frontier");
+    None
   }
 
   fn len(&self) -> usize {
