@@ -34,3 +34,8 @@ reqwest = { version = "0.12.23", default-features = false, features = ["native-t
 
 # URL parsing.
 url = { version = "2.5.6", default-features = false, features = [] }
+
+[dev-dependencies]
+
+# Mocking HTTP server.
+httpmock = { version = "0.7.0", default-features = false, features = [] }
