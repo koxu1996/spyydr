@@ -97,6 +97,17 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
       self.broker_svc.push_task(task).await.unwrap(); // TODO: Handle error properly.
     }
 
+    // Notify broker that task is done.
+    self
+      .broker_svc
+      .event_task_done(
+        task_url,
+        fetched_content.status,
+        links.len(),
+        new_links.len(),
+      )
+      .await;
+
     Ok(())
   }
 

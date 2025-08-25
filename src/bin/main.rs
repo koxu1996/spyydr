@@ -32,8 +32,9 @@ async fn main() -> eyre::Result<()> {
   let canonicalizer = spyydr::components::canonicalizer::NoQueryCanonicalizer;
   let policy = spyydr::components::policy::SimplePolicy::new(None, None, None);
   let registry = Arc::new(spyydr::components::registry::InMemoryRegistry::new());
+  let monitor = spyydr::components::monitor::ConsoleMonitor;
 
-  let mut engine = spyydr::engine::Engine::new(frontier, registry.clone()).await;
+  let mut engine = spyydr::engine::Engine::new(frontier, registry.clone(), monitor).await;
   let broker_svc = engine.get_broker_svc().clone();
   let registry = engine.get_registry();
 

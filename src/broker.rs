@@ -3,6 +3,7 @@ use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 
 use crate::components::frontier::Frontier;
+use crate::components::monitor::Monitor;
 use crate::error::Error;
 use crate::types::CrawlTask;
 
@@ -50,6 +51,25 @@ impl CrawlBrokerService {
 
     Ok(maybe_task)
   }
+
+  /// Notifies the broker that a task has been completed.
+  pub async fn event_task_done(
+    &self,
+    url: url::Url,
+    status: u16,
+    links_found: usize,
+    admitted_links: usize,
+  ) {
+    let cmd = BrokerCommand::EventTaskDone {
+      url,
+      status,
+      links_found,
+      admitted_links,
+    };
+
+    // Send the command to the worker thread. No ACK needed.
+    self.tx.send(cmd).await.unwrap(); // TODO: Handle error.
+  }
 }
 
 /// Commands that can be sent to the worker thread.
@@ -61,19 +81,32 @@ pub enum BrokerCommand {
   PopTask {
     resp_tx: oneshot::Sender<Option<CrawlTask>>,
   },
+  EventTaskDone {
+    url: url::Url,
+    status: u16,
+    links_found: usize,
+    admitted_links: usize,
+  },
 }
 
 /// Worker that processes commands from the MPSC channel.
-pub struct BrokerWorker<Fr: Frontier> {
+pub struct BrokerWorker<Fr: Frontier, M: Monitor> {
   frontier: Fr,
+  monitor: M,
   rx: mpsc::Receiver<BrokerCommand>,
 }
 
-impl<Fr: Frontier + Send + 'static> BrokerWorker<Fr> {
+impl<Fr: Frontier + Send + 'static, M: Monitor + Send + 'static> BrokerWorker<Fr, M> {
   /// Spawns a new broker worker thread.
-  pub fn spawn(rx: mpsc::Receiver<BrokerCommand>, frontier: Fr) -> JoinHandle<()> {
+  pub fn spawn(rx: mpsc::Receiver<BrokerCommand>, frontier: Fr, monitor: M) -> JoinHandle<()> {
     tokio::spawn(async move {
-      Self { frontier, rx }.run().await;
+      Self {
+        frontier,
+        rx,
+        monitor,
+      }
+      .run()
+      .await;
     })
   }
 
@@ -88,6 +121,17 @@ impl<Fr: Frontier + Send + 'static> BrokerWorker<Fr> {
         BrokerCommand::PopTask { resp_tx } => {
           let maybe_task = self.frontier.pop();
           let _ = resp_tx.send(maybe_task);
+        }
+        BrokerCommand::EventTaskDone {
+          url,
+          status,
+          links_found,
+          admitted_links,
+        } => {
+          self
+            .monitor
+            .on_task_ready(url, status, links_found, admitted_links);
+          // No ACK needed.
         }
       }
     }
