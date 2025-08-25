@@ -43,7 +43,8 @@ impl Fetcher for ReqwestFetcher {
     tracing::debug!(status, "received response");
 
     let body = response.text().await?;
-    tracing::trace!(body_len = body.len(), "body read");
+    tracing::debug!(body_len = body.len(), "body read");
+    tracing::trace!(body = %body, "body content");
 
     Ok(FetchedContent {
       url: url.clone(),
