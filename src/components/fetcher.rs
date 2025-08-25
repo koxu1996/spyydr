@@ -61,3 +61,77 @@ impl Fetcher for ReqwestFetcher {
     })
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use httpmock::prelude::*;
+  use url::Url;
+
+  #[tokio::test]
+  async fn reqwest_fetcher_returns_200_body() {
+    let server = MockServer::start();
+    let m = server.mock(|when, then| {
+      when.method(GET).path("/ok");
+      then
+        .status(200)
+        .header("content-type", "text/plain")
+        .body("hello world");
+    });
+
+    let fetcher = ReqwestFetcher {
+      client: reqwest::Client::new(),
+    };
+
+    let url = Url::parse(&format!("{}/ok", server.base_url())).unwrap();
+    let page = fetcher.fetch(&url).await.expect("fetch ok");
+
+    m.assert();
+    assert_eq!(page.url, url);
+    assert_eq!(page.status, 200);
+    assert_eq!(page.body, "hello world");
+  }
+
+  #[tokio::test]
+  async fn reqwest_fetcher_surfaces_non_2xx_status() {
+    let server = MockServer::start();
+    let m = server.mock(|when, then| {
+      when.method(GET).path("/notfound");
+      then
+        .status(404)
+        .header("content-type", "text/plain")
+        .body("missing");
+    });
+
+    let fetcher = ReqwestFetcher {
+      client: reqwest::Client::new(),
+    };
+
+    let url = Url::parse(&format!("{}/notfound", server.base_url())).unwrap();
+    let page = fetcher
+      .fetch(&url)
+      .await
+      .expect("fetch ok even for non-2xx");
+
+    m.assert();
+    assert_eq!(page.url, url);
+    assert_eq!(page.status, 404);
+    assert_eq!(page.body, "missing");
+  }
+
+  #[tokio::test]
+  async fn reqwest_fetcher_network_error_maps_to_error() {
+    // Point to a port with no listener to force a connection error quickly.
+    // Using 127.0.0.1:1 is a common trick (privileged/likely closed).
+    let url = Url::parse("http://127.0.0.1:1/").unwrap();
+
+    let fetcher = ReqwestFetcher {
+      client: reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build()
+        .unwrap(),
+    };
+
+    fetcher.fetch(&url).await.expect_err("should error");
+  }
+}
