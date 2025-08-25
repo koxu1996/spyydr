@@ -8,7 +8,7 @@ pub struct FetchedContent {
   // pub elapsed: Duration,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PolicyVerdict {
   pub allowed: bool,
   pub reason: &'static str,
