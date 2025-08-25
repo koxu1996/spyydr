@@ -8,43 +8,68 @@ pub trait Canonicalizer {
 }
 
 /// Canonicalizer that is focused on base URL, ignoring query parameters.
+/// Example: `http://foo.bar/posts?page=123` gets turned into `http://foo.bar/posts`.
 #[derive(Clone, Debug, Default)]
 pub struct NoQueryCanonicalizer;
 
-impl NoQueryCanonicalizer {
-  pub fn new() -> Self {
-    Self
+impl Canonicalizer for NoQueryCanonicalizer {
+  #[tracing::instrument(skip(self), fields(input = %url))]
+  fn canonicalize(&self, url: &Url) -> Result<Url, Error> {
+    let mut new_url = url.clone();
+
+    // Remove query.
+    if new_url.query().is_some() {
+      tracing::trace!(old_query = ?new_url.query(), "dropping query");
+      new_url.set_query(None);
+    }
+
+    // Remove fragment too.
+    if new_url.fragment().is_some() {
+      tracing::trace!(old_fragment = ?new_url.fragment(), "dropping fragment");
+      new_url.set_fragment(None);
+    }
+
+    // NOTE: We could also update host to lowercase, but that is extreme case.
+
+    // Log changes.
+    let before = url.as_str();
+    let after = new_url.as_str();
+    if after != before {
+      tracing::debug!(%before, %after, "canonicalized URL changed");
+    } else {
+      tracing::trace!(%after, "canonicalized URL unchanged");
+    }
+
+    Ok(new_url)
   }
 }
 
-impl Canonicalizer for NoQueryCanonicalizer {
-  fn canonicalize(&self, url: &Url) -> Result<Url, Error> {
-    // Use lowercase host.
-    let mut u = url.clone();
-    if let Some(host) = u.host_str() {
-      u.set_host(Some(&host.to_ascii_lowercase())).unwrap(); // TODO: Fix unwrap.
-    }
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use url::Url;
 
-    // Remove default ports.
-    match (u.scheme(), u.port()) {
-      ("http", Some(80)) => {
-        let _ = u.set_port(None);
-      }
-      ("https", Some(443)) => {
-        let _ = u.set_port(None);
-      }
-      _ => {}
-    }
+  fn canon(s: &str) -> String {
+    let url = Url::parse(s).unwrap();
+    let c = NoQueryCanonicalizer;
+    c.canonicalize(&url).unwrap().to_string()
+  }
 
-    // Set root path if empty.
-    if u.path().is_empty() {
-      u.set_path("/");
-    }
+  #[test]
+  fn removes_query_and_fragment() {
+    assert_eq!(
+      canon("http://foo.bar/posts?page=123#top"),
+      "http://foo.bar/posts"
+    );
+    assert_eq!(canon("https://foo.bar/#frag"), "https://foo.bar/");
+    assert_eq!(canon("https://foo.bar/?q=1"), "https://foo.bar/");
+  }
 
-    // Remove query and fragment.
-    u.set_query(None);
-    u.set_fragment(None);
-
-    Ok(u)
+  #[test]
+  fn sets_root_path_if_empty() {
+    // `url::Url` already normalizes http(s) with empty path to trailing slash,
+    // but this test ensures our canonical form matches that expectation.
+    assert_eq!(canon("http://example.com"), "http://example.com/");
+    assert_eq!(canon("https://example.com"), "https://example.com/");
   }
 }
