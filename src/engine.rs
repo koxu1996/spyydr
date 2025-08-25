@@ -45,6 +45,9 @@ impl<Fr: Frontier + Send + 'static, R: Registry> Engine<Fr, R> {
       parent: None, // No parent for the initial task.
     };
 
+    // Mark link as discovered in the registry.
+    self.registry.register(&task.url);
+
     // Push the start task to the frontier (via broker).
     self.broker_svc.push_task(task).await.unwrap(); // TODO: Handle error properly.
 
