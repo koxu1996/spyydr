@@ -30,10 +30,10 @@ impl CrawlBrokerService {
     let cmd = BrokerCommand::PushTask { task, resp_tx };
 
     // Send the command to the worker thread.
-    self.tx.send(cmd).await.unwrap(); // TODO: Handle error.
+    self.tx.send(cmd).await?;
 
     // Wait for ACK.
-    resp_rx.await.unwrap(); // TODO: Handle error.
+    resp_rx.await?;
 
     Ok(())
   }
@@ -44,10 +44,10 @@ impl CrawlBrokerService {
     let cmd = BrokerCommand::PopTask { resp_tx };
 
     // Send the command to the worker thread.
-    self.tx.send(cmd).await.unwrap(); // TODO: Handle error.
+    self.tx.send(cmd).await?;
 
     // Wait for the response.
-    let maybe_task = resp_rx.await.unwrap(); // TODO: Handle error.
+    let maybe_task = resp_rx.await?;
 
     Ok(maybe_task)
   }
@@ -68,7 +68,7 @@ impl CrawlBrokerService {
     };
 
     // Send the command to the worker thread. No ACK needed.
-    self.tx.send(cmd).await.unwrap(); // TODO: Handle error.
+    let _ = self.tx.send(cmd).await;
   }
 }
 
