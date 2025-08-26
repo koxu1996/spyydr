@@ -37,7 +37,7 @@ pub struct Cli {
   pub user_agent: String,
 
   /// Max number of retries on transient HTTP errors (e.g. 429, 5xx).
-  #[arg(long = "max-retries", default_value_t = 5)]
+  #[arg(long, default_value_t = 5)]
   pub max_retries: usize,
 
   /// Timeout in seconds for each HTTP request.
