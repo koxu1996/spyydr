@@ -31,10 +31,14 @@ impl CrawlBrokerService {
     let cmd = BrokerCommand::PushTask { task, resp_tx };
 
     // Send the command to the worker thread.
-    self.tx.send(cmd).await?;
+    self
+      .tx
+      .send(cmd)
+      .await
+      .map_err(|_| Error::BrokerChannelClosed)?;
 
     // Wait for ACK.
-    resp_rx.await?;
+    resp_rx.await.map_err(|_| Error::BrokerResponseDropped)?;
 
     Ok(())
   }
@@ -46,10 +50,14 @@ impl CrawlBrokerService {
     let cmd = BrokerCommand::PopTask { resp_tx };
 
     // Send the command to the worker thread.
-    self.tx.send(cmd).await?;
+    self
+      .tx
+      .send(cmd)
+      .await
+      .map_err(|_| Error::BrokerChannelClosed)?;
 
     // Wait for the response.
-    let maybe_task = match resp_rx.await? {
+    let maybe_task = match resp_rx.await.map_err(|_| Error::BrokerResponseDropped)? {
       Some(task) => {
         tracing::debug!(url = %task.url, depth = task.depth, "Received task from broker");
         Some(task)
@@ -138,7 +146,7 @@ impl<Fr: Frontier + Send + 'static, M: Monitor + Send + 'static> BrokerWorker<Fr
         BrokerCommand::PushTask { task, resp_tx } => {
           tracing::debug!(url = %task.url, depth = task.depth, "Received PushTask");
           self.frontier.add(task);
-          if let Err(_) = resp_tx.send(()) {
+          if resp_tx.send(()).is_err() {
             tracing::warn!("PushTask response channel dropped before ACK");
           }
         }
@@ -154,7 +162,7 @@ impl<Fr: Frontier + Send + 'static, M: Monitor + Send + 'static> BrokerWorker<Fr
               None
             }
           };
-          if let Err(_) = resp_tx.send(maybe_task) {
+          if resp_tx.send(maybe_task).is_err() {
             tracing::warn!("PopTask response channel dropped");
           }
         }
