@@ -35,9 +35,13 @@ async fn main() -> eyre::Result<()> {
   let extractor = spyydr::components::extractor::HtmlExtractor;
   let frontier = spyydr::components::frontier::BfsFrontier::default();
   let canonicalizer = spyydr::components::canonicalizer::NoQueryCanonicalizer;
-  let policy = spyydr::components::policy::SimplePolicy::new(args.max_depth, args.whitelist, args.blacklist);
+  let policy =
+    spyydr::components::policy::SimplePolicy::new(args.max_depth, args.whitelist, args.blacklist);
   let registry = Arc::new(spyydr::components::registry::InMemoryRegistry::new());
-  let monitor = spyydr::components::monitor::ConsoleMonitor;
+  let monitor = spyydr::components::monitor::WithProgressMonitor::new(
+    spyydr::components::monitor::ConsoleMonitor,
+  );
+  monitor.spawn_reporter(args.progress_interval);
 
   let mut engine =
     spyydr::orchestration::engine::Engine::new(frontier, registry.clone(), monitor).await;

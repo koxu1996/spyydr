@@ -55,6 +55,10 @@ pub struct Cli {
   /// Disallow crawling domains that match these suffixes (case-insensitive).
   #[arg(long, value_delimiter = ',', num_args = 1..)]
   pub blacklist: Option<Vec<String>>,
+
+  /// Interval in seconds for printing progress reports.
+  #[arg(long, default_value_t = 10)]
+  pub progress_interval: u64,
 }
 
 fn validate_agents(s: &str) -> Result<usize, String> {
