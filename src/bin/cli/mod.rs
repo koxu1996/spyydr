@@ -47,6 +47,14 @@ pub struct Cli {
   /// Maximum crawl depth (0 = only start URL, 1 = start + direct links, etc.).
   #[arg(long)]
   pub max_depth: Option<u32>,
+
+  /// Only allow crawling domains that match these suffixes (case-insensitive).
+  #[arg(long, value_delimiter = ',', num_args = 1..)]
+  pub whitelist: Option<Vec<String>>,
+
+  /// Disallow crawling domains that match these suffixes (case-insensitive).
+  #[arg(long, value_delimiter = ',', num_args = 1..)]
+  pub blacklist: Option<Vec<String>>,
 }
 
 fn validate_agents(s: &str) -> Result<usize, String> {
