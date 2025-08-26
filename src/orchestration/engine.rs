@@ -3,12 +3,12 @@ use std::sync::Arc;
 
 use tokio::task::JoinHandle;
 
-use crate::broker::BrokerWorker;
-use crate::broker::CrawlBrokerService;
 use crate::components::frontier::Frontier;
 use crate::components::monitor::Monitor;
 use crate::components::registry::Registry;
 use crate::error::Error;
+use crate::orchestration::broker::BrokerWorker;
+use crate::orchestration::broker::CrawlBrokerService;
 
 /// Default capacity for the MPSC channel used by the broker.
 const DEFAULT_BROKER_CAPACITY: usize = 8192;

@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use crate::broker::CrawlBrokerService;
 use crate::components::canonicalizer::Canonicalizer;
 use crate::components::extractor::Extractor;
 use crate::components::fetcher::Fetcher;
 use crate::components::policy::Policy;
 use crate::components::registry::Registry;
 use crate::error::Error;
+use crate::orchestration::broker::CrawlBrokerService;
 use crate::types::CrawlTask;
 
 pub struct Agent<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> {

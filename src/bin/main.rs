@@ -34,14 +34,15 @@ async fn main() -> eyre::Result<()> {
   let registry = Arc::new(spyydr::components::registry::InMemoryRegistry::new());
   let monitor = spyydr::components::monitor::ConsoleMonitor;
 
-  let mut engine = spyydr::engine::Engine::new(frontier, registry.clone(), monitor).await;
+  let mut engine =
+    spyydr::orchestration::engine::Engine::new(frontier, registry.clone(), monitor).await;
   let broker_svc = engine.get_broker_svc().clone();
   let registry = engine.get_registry();
 
   engine.init(&args.start_url).await?;
   let mut agent_handles = vec![];
   for _agent_id in 0..1 {
-    let agent = spyydr::agent::Agent::new(
+    let agent = spyydr::orchestration::agent::Agent::new(
       fetcher.clone(),
       extractor.clone(),
       canonicalizer.clone(),

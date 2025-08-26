@@ -9,7 +9,9 @@ pub enum Error {
   UrlParse(#[from] url::ParseError),
 
   #[error("Failed to send command to broker: {0}")]
-  BrokerSendError(#[from] tokio::sync::mpsc::error::SendError<crate::broker::BrokerCommand>),
+  BrokerSendError(
+    #[from] tokio::sync::mpsc::error::SendError<crate::orchestration::broker::BrokerCommand>,
+  ),
 
   #[error("Failed to receive response from broker: {0}")]
   BrokerRecvError(#[from] tokio::sync::oneshot::error::RecvError),
