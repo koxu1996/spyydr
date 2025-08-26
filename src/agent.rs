@@ -30,6 +30,7 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
     registry: Arc<R>,
     broker_svc: CrawlBrokerService,
   ) -> Self {
+    tracing::info!("Initializing new Agent instance");
     Agent {
       fetcher,
       extractor,
@@ -41,31 +42,50 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
   }
 
   // Get next item from the frontier (via broker).
+  #[tracing::instrument(skip(self), level = "debug")]
   pub async fn get_next_task(&self) -> Result<Option<CrawlTask>, Error> {
-    let maybe_task = self.broker_svc.pop_task().await.unwrap(); // TODO: Handle error properly.
+    tracing::debug!("Requesting next task from broker");
+    let maybe_task = match self.broker_svc.pop_task().await? {
+      Some(task) => {
+        tracing::debug!("Received task: {:?}", task);
+        Some(task)
+      }
+      None => {
+        tracing::debug!("Broker returned no task");
+        None
+      }
+    };
 
     Ok(maybe_task)
   }
 
   /// Runs core logic of task processing.
+  #[tracing::instrument(skip(self, task), fields(url = %task.url, depth = task.depth))]
   pub async fn process_task(&self, task: CrawlTask) -> Result<(), Error> {
+    tracing::info!("Processing task for URL: {}", task.url);
     let task_url = task.url;
     let task_depth = task.depth;
 
     let fetched_content = self.fetcher.fetch(&task_url).await?;
-    tracing::info!("Fetched content of {:?}", fetched_content.url);
+    tracing::info!(
+      "Fetched content from {} with status: {}",
+      fetched_content.url,
+      fetched_content.status
+    );
 
     // Mark item as visited in the registry.
     self.registry.mark_fetched(&task_url);
+    tracing::debug!("Marked URL as fetched in registry");
 
     let links = self.extractor.find_links(&fetched_content)?;
-    tracing::info!("Extracted {} links", links.len());
+    tracing::info!("Extracted {} links from {}", links.len(), task_url);
 
     // Canonicalize the links.
     let canonical_links = links
       .iter()
       .map(|link| self.canonicalizer.canonicalize(link))
       .collect::<Result<Vec<_>, _>>()?;
+    tracing::debug!("Canonicalized {} links", canonical_links.len());
 
     // Check against the policy.
     let admitted_links = canonical_links
@@ -73,6 +93,7 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
       .filter_map(|link| {
         let verdict = self.policy.evaluate(link, &task_url, task_depth);
         if verdict.allowed {
+          tracing::debug!("Link allowed: {}", link);
           Some(link.clone())
         } else {
           tracing::warn!("Link {} denied by policy: {}", link, verdict.reason);
@@ -83,6 +104,7 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
 
     // Put admitted links into the registry.
     let new_links = self.registry.register_many(admitted_links.iter());
+    tracing::info!("Registered {} new links", new_links.len());
 
     // Put all new links into the frontier.
     let tasks = new_links.iter().map(|link| {
@@ -94,25 +116,33 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
       }
     });
     for task in tasks {
-      self.broker_svc.push_task(task).await.unwrap(); // TODO: Handle error properly.
+      self.broker_svc.push_task(task).await?;
     }
 
     // Notify broker that task is done.
     self
       .broker_svc
       .event_task_done(
-        task_url,
+        task_url.clone(),
         fetched_content.status,
         links.len(),
         new_links.len(),
       )
       .await;
 
+    tracing::info!(
+      "Task complete: {} | extracted: {} | admitted: {}",
+      task_url,
+      links.len(),
+      new_links.len()
+    );
+
     Ok(())
   }
 
   // Run crawling loop.
   pub async fn run_infinite_loop(&self) {
+    tracing::info!("Starting agent crawling loop");
     loop {
       let maybe_task = self.get_next_task().await;
       match maybe_task {
@@ -126,7 +156,7 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
           tokio::time::sleep(tokio::time::Duration::from_secs(1)).await; // Sleep before checking again.
         }
         Err(e) => {
-          tracing::error!("Error getting next task: {}", e);
+          tracing::error!("Failed to get next task: {}", e);
           break; // Exit on error.
         }
       }
