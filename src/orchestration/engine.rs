@@ -26,8 +26,14 @@ pub struct Engine<Fr: Frontier, R: Registry, M: Monitor> {
 
 impl<Fr: Frontier + Send + 'static, R: Registry, M: Monitor + Send + 'static> Engine<Fr, R, M> {
   pub async fn new(frontier: Fr, registry: Arc<R>, monitor: M) -> Self {
+    tracing::info!(
+      "Initializing Engine with default broker capacity: {}",
+      DEFAULT_BROKER_CAPACITY
+    );
     let (broker_svc, rx) = CrawlBrokerService::new_bounded(DEFAULT_BROKER_CAPACITY).await;
     let broker_handle = BrokerWorker::spawn(rx, frontier, monitor);
+    tracing::info!("Broker worker spawned");
+
     Engine {
       registry,
       _broker_handle: broker_handle,
@@ -37,20 +43,24 @@ impl<Fr: Frontier + Send + 'static, R: Registry, M: Monitor + Send + 'static> En
     }
   }
 
+  #[tracing::instrument(level = "info", skip(self))]
   pub async fn init(&mut self, start_url: &str) -> Result<(), Error> {
     // Initialize the frontier with the starting URL.
+    tracing::info!("Initializing crawl with start URL: {}", start_url);
     let url = url::Url::parse(start_url)?;
     let task = crate::types::CrawlTask {
-      url,
+      url: url.clone(),
       depth: 0,     // Starting depth.
       parent: None, // No parent for the initial task.
     };
 
     // Mark link as discovered in the registry.
     self.registry.register(&task.url);
+    tracing::debug!(%task.url, "Registered start URL in registry");
 
     // Push the start task to the frontier (via broker).
     self.broker_svc.push_task(task).await?;
+    tracing::info!(%url, "Pushed start task to broker");
 
     Ok(())
   }
