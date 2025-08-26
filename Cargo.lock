@@ -1885,6 +1885,7 @@ dependencies = [
  "httpmock",
  "reqwest",
  "scraper",
+ "serde",
  "thiserror",
  "tokio",
  "tracing",
