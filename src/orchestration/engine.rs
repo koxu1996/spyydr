@@ -54,6 +54,8 @@ impl<Fr: Frontier + Send + 'static, R: Registry, M: Monitor + Send + 'static> En
       parent: None, // No parent for the initial task.
     };
 
+    // CAUTION: We do not check policy for the start URL - it's always allowed.
+
     // Mark link as discovered in the registry.
     self.registry.register(&task.url);
     tracing::debug!(%task.url, "Registered start URL in registry");
