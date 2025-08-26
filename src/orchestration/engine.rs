@@ -18,7 +18,7 @@ pub struct Engine<Fr: Frontier, R: Registry, M: Monitor> {
   registry: Arc<R>,
   // Broker is used to distribute tasks (wraps frontier).
   broker_frontier_type: PhantomData<Fr>,
-  broker_handle: JoinHandle<()>,
+  _broker_handle: JoinHandle<()>, // NOTE: Should be used when graceful shutdown is implemented.
   broker_svc: CrawlBrokerService,
   // Monitor for observing crawl events.
   monitor_type: PhantomData<M>,
@@ -30,7 +30,7 @@ impl<Fr: Frontier + Send + 'static, R: Registry, M: Monitor + Send + 'static> En
     let broker_handle = BrokerWorker::spawn(rx, frontier, monitor);
     Engine {
       registry,
-      broker_handle,
+      _broker_handle: broker_handle,
       broker_svc,
       broker_frontier_type: PhantomData,
       monitor_type: PhantomData,
