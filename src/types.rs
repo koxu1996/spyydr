@@ -1,5 +1,6 @@
 use url::Url;
 
+/// Content fetched from a URL.
 #[derive(Clone, Debug)]
 pub struct FetchedContent {
   pub url: Url,
@@ -8,6 +9,7 @@ pub struct FetchedContent {
   // pub elapsed: Duration,
 }
 
+/// Verdict from the crawling policy.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PolicyVerdict {
   pub allowed: bool,
@@ -28,12 +30,14 @@ impl PolicyVerdict {
   }
 }
 
+/// Status of a registry item.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum RegistryItemStatus {
   Discovered,
   Fetched,
 }
 
+/// A task to crawl a specific URL.
 #[derive(Clone, Debug)]
 pub struct CrawlTask {
   pub url: Url,
