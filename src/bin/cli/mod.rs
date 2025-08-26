@@ -36,3 +36,12 @@ pub struct Cli {
   )]
   pub user_agent: String,
 }
+
+fn validate_agents(s: &str) -> Result<usize, String> {
+  let val: usize = s.parse().map_err(|_| format!("Invalid number: {s}"))?;
+  if val == 0 {
+    Err("Number of agents must be greater than 0".into())
+  } else {
+    Ok(val)
+  }
+}
