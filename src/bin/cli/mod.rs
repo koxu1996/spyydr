@@ -43,6 +43,10 @@ pub struct Cli {
   /// Timeout in seconds for each HTTP request.
   #[arg(long, default_value_t = 10)]
   pub request_timeout: u64,
+
+  /// Maximum crawl depth (0 = only start URL, 1 = start + direct links, etc.).
+  #[arg(long)]
+  pub max_depth: Option<u32>,
 }
 
 fn validate_agents(s: &str) -> Result<usize, String> {
