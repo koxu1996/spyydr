@@ -27,10 +27,38 @@ impl Fetcher for NoopFetcher {
   }
 }
 
+#[derive(Clone, Debug)]
+pub struct ReqwestFetcherConfig {
+  pub user_agent: Option<String>,
+}
+
+impl Default for ReqwestFetcherConfig {
+  fn default() -> Self {
+    Self { user_agent: None }
+  }
+}
+
 /// Reqwest-based fetcher.
 #[derive(Clone, Default)]
 pub struct ReqwestFetcher {
   client: reqwest::Client,
+}
+
+impl ReqwestFetcher {
+  /// Create a new ReqwestFetcher with configuration.
+  pub fn new(config: ReqwestFetcherConfig) -> Self {
+    let mut builder = reqwest::Client::builder();
+
+    if let Some(user_agent) = config.user_agent {
+      builder = builder.user_agent(user_agent);
+    }
+
+    let client = builder
+      .build()
+      .map_err(|e| Error::Unexpected(format!("Failed to build HTTP client: {}", e)))
+      .unwrap();
+    Self { client }
+  }
 }
 
 impl Fetcher for ReqwestFetcher {

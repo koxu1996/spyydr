@@ -26,7 +26,10 @@ async fn main() -> eyre::Result<()> {
   let args = Cli::parse();
 
   println!("Starting crawl at: {}", args.start_url);
-  let fetcher = spyydr::components::fetcher::ReqwestFetcher::default();
+  let fetcher_config = spyydr::components::fetcher::ReqwestFetcherConfig {
+    user_agent: Some(args.user_agent.clone()),
+  };
+  let fetcher = spyydr::components::fetcher::ReqwestFetcher::new(fetcher_config);
   let extractor = spyydr::components::extractor::HtmlExtractor;
   let frontier = spyydr::components::frontier::BfsFrontier::default();
   let canonicalizer = spyydr::components::canonicalizer::NoQueryCanonicalizer;
