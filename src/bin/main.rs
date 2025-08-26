@@ -41,7 +41,8 @@ async fn main() -> eyre::Result<()> {
 
   engine.init(&args.start_url).await?;
   let mut agent_handles = vec![];
-  for _agent_id in 0..1 {
+  let num_agents = args.agents;
+  for _agent_id in 0..num_agents {
     let agent = spyydr::orchestration::agent::Agent::new(
       fetcher.clone(),
       extractor.clone(),

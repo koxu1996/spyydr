@@ -24,4 +24,8 @@ pub struct Cli {
   /// Starting URL (seed) for the crawl.
   #[arg(value_name = "START_URL", value_hint = ValueHint::Url)]
   pub start_url: String,
+
+  /// Number of concurrent agents (crawlers) to run.
+  #[arg(short, long, default_value_t = 1, value_parser = validate_agents)]
+  pub agents: usize,
 }
