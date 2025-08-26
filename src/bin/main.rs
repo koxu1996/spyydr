@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use clap::Parser;
 use color_eyre::eyre;
@@ -57,6 +58,19 @@ async fn main() -> eyre::Result<()> {
   let broker_svc = engine.get_broker_svc().clone();
   let registry = engine.get_registry();
 
+  // Triggering shutdown signal via Ctrl+C.
+  let shutdown = Arc::new(AtomicBool::new(false));
+  {
+    let shutdown = shutdown.clone();
+    tokio::spawn(async move {
+      tokio::signal::ctrl_c()
+        .await
+        .expect("Failed to listen for Ctrl+C");
+      eprintln!("Received Ctrl+C, shutting down...");
+      shutdown.store(true, Ordering::Relaxed);
+    });
+  }
+
   engine.init(&args.start_url).await?;
   let mut agent_handles = vec![];
   let num_agents = args.agents;
@@ -70,18 +84,19 @@ async fn main() -> eyre::Result<()> {
       broker_svc.clone(),
     )
     .await;
+    let shutdown = shutdown.clone();
     let handle = tokio::spawn(async move {
-      agent.run_infinite_loop().await;
+      agent.run(shutdown).await;
     });
     agent_handles.push(handle);
   }
 
-  // Wait for handles - currently never ending.
+  // Wait until agents finish.
   for handle in agent_handles {
     handle.await.unwrap();
   }
 
-  // Err(spyydr::error::Error::Unexpected("test error".to_string()))?
+  println!("Crawl finished gracefully.");
 
   Ok(())
 }

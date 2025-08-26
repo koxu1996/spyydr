@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::components::canonicalizer::Canonicalizer;
 use crate::components::extractor::Extractor;
@@ -137,9 +138,14 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
   }
 
   // Run crawling loop.
-  pub async fn run_infinite_loop(&self) {
+  pub async fn run(&self, shutdown: Arc<AtomicBool>) {
     tracing::info!("Starting agent crawling loop");
     loop {
+      if shutdown.load(Ordering::Relaxed) {
+        tracing::info!("Agent shutting down by signal");
+        break;
+      }
+
       let maybe_task = self.get_next_task().await;
       match maybe_task {
         Ok(Some(task)) => {
@@ -157,5 +163,7 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
         }
       }
     }
+
+    tracing::info!("Agent has exited the crawling loop");
   }
 }
