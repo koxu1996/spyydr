@@ -74,20 +74,20 @@ impl CrawlBrokerService {
   /// Notifies the broker that a task has been completed.
   pub async fn event_task_done(
     &self,
-    url: url::Url,
+    task: CrawlTask,
     status: u16,
     links_found: usize,
     admitted_links: usize,
   ) {
     tracing::debug!(
-        %url,
+        %task.url,
         status,
         links_found,
         admitted_links,
         "Sending EventTaskDone to broker"
     );
     let cmd = BrokerCommand::EventTaskDone {
-      url,
+      task,
       status,
       links_found,
       admitted_links,
@@ -110,7 +110,7 @@ pub enum BrokerCommand {
     resp_tx: oneshot::Sender<Option<CrawlTask>>,
   },
   EventTaskDone {
-    url: url::Url,
+    task: CrawlTask,
     status: u16,
     links_found: usize,
     admitted_links: usize,
@@ -167,13 +167,13 @@ impl<Fr: Frontier + Send + 'static, M: Monitor + Send + 'static> BrokerWorker<Fr
           }
         }
         BrokerCommand::EventTaskDone {
-          url,
+          task,
           status,
           links_found,
           admitted_links,
         } => {
           tracing::info!(
-              %url,
+              %task.url,
               status,
               links_found,
               admitted_links,
@@ -181,7 +181,7 @@ impl<Fr: Frontier + Send + 'static, M: Monitor + Send + 'static> BrokerWorker<Fr
           );
           self
             .monitor
-            .on_task_ready(url, status, links_found, admitted_links);
+            .on_task_ready(&task, status, links_found, admitted_links);
           // No ACK needed.
         }
       }

@@ -1,7 +1,7 @@
 /// Handles crawling events.
 pub trait Monitor {
   /// Called when a URL is successfully fetched and processed.
-  fn on_task_ready(&self, url: url::Url, status: u16, links_found: usize, admitted_links: usize);
+  fn on_task_ready(&self, task: &CrawlTask, status: u16, links_found: usize, admitted_links: usize);
 }
 
 /// Simple console reporter that prints events to stdout.
@@ -9,10 +9,16 @@ pub trait Monitor {
 pub struct ConsoleMonitor;
 
 impl Monitor for ConsoleMonitor {
-  fn on_task_ready(&self, url: url::Url, status: u16, links_found: usize, admitted_links: usize) {
+  fn on_task_ready(
+    &self,
+    task: &CrawlTask,
+    status: u16,
+    links_found: usize,
+    admitted_links: usize,
+  ) {
     println!(
       "✓ Visited: {} (status: {}, {} links found, {} added to frontier)",
-      url, status, links_found, admitted_links
+      task.url, status, links_found, admitted_links
     );
   }
 }
@@ -21,9 +27,9 @@ impl Monitor for ConsoleMonitor {
 pub struct MultiMonitor(pub Vec<Box<dyn Monitor + Send + Sync>>);
 
 impl Monitor for MultiMonitor {
-  fn on_task_ready(&self, url: url::Url, status: u16, links: usize, admitted: usize) {
+  fn on_task_ready(&self, task: &CrawlTask, status: u16, links: usize, admitted: usize) {
     for m in &self.0 {
-      m.on_task_ready(url.clone(), status, links, admitted);
+      m.on_task_ready(task, status, links, admitted);
     }
   }
 }
@@ -58,7 +64,7 @@ impl ProgressMonitor {
 impl Monitor for ProgressMonitor {
   fn on_task_ready(
     &self,
-    _url: url::Url,
+    _url: &CrawlTask,
     _status: u16,
     _links_found: usize,
     admitted_links: usize,
@@ -72,12 +78,14 @@ use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 
+use crate::types::CrawlTask;
+
 #[derive(serde::Serialize)]
 pub struct OutputRow {
   pub url: String,
   pub status: u16,
-  // pub depth: u32,
-  // pub parent: Option<String>,
+  pub depth: u32,
+  pub parent: Option<String>,
 }
 
 /// Monitor that saves crawl results to a file in JSON lines format.
@@ -96,10 +104,12 @@ impl SavingMonitor {
 }
 
 impl Monitor for SavingMonitor {
-  fn on_task_ready(&self, url: url::Url, status: u16, _found: usize, _admitted: usize) {
+  fn on_task_ready(&self, task: &CrawlTask, status: u16, _found: usize, _admitted: usize) {
     let row = OutputRow {
-      url: url.to_string(),
+      url: task.url.to_string(),
       status,
+      depth: task.depth,
+      parent: task.parent.as_ref().map(|p| p.to_string()),
     };
 
     if let Ok(json) = serde_json::to_string(&row) {

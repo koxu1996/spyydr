@@ -63,7 +63,7 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
   #[tracing::instrument(skip(self, task), fields(url = %task.url, depth = task.depth))]
   pub async fn process_task(&self, task: CrawlTask) -> Result<(), Error> {
     tracing::info!("Processing task for URL: {}", task.url);
-    let task_url = task.url;
+    let task_url = task.url.clone();
     let task_depth = task.depth;
 
     let fetched_content = self.fetcher.fetch(&task_url).await?;
@@ -123,12 +123,7 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
     // Notify broker that task is done.
     self
       .broker_svc
-      .event_task_done(
-        task_url.clone(),
-        fetched_content.status,
-        links.len(),
-        new_links.len(),
-      )
+      .event_task_done(task, fetched_content.status, links.len(), new_links.len())
       .await;
 
     tracing::info!(
