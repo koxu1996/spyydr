@@ -5,6 +5,9 @@ pub enum Error {
   #[error("HTTP fetch error: {0}")]
   HttpFetch(#[from] reqwest::Error),
 
+  #[error("Transient HTTP error: {0}")]
+  TransientHttp(u16),
+
   #[error("URL parse error: {0}")]
   UrlParse(#[from] url::ParseError),
 

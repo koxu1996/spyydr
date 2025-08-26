@@ -35,6 +35,10 @@ pub struct Cli {
     default_value = "SpyydrBot/1.0 (+https://gitlab.com/andrzej1_1/spyydr)"
   )]
   pub user_agent: String,
+
+  /// Max number of retries on transient HTTP errors (e.g. 429, 5xx).
+  #[arg(long = "max-retries", default_value_t = 5)]
+  pub max_retries: usize,
 }
 
 fn validate_agents(s: &str) -> Result<usize, String> {

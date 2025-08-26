@@ -1,3 +1,5 @@
+use backon::{BackoffBuilder, ExponentialBuilder, Retryable};
+use reqwest::StatusCode;
 use url::Url;
 
 use crate::error::Error;
@@ -30,11 +32,15 @@ impl Fetcher for NoopFetcher {
 #[derive(Clone, Debug)]
 pub struct ReqwestFetcherConfig {
   pub user_agent: Option<String>,
+  pub max_retries: usize,
 }
 
 impl Default for ReqwestFetcherConfig {
   fn default() -> Self {
-    Self { user_agent: None }
+    Self {
+      user_agent: None,
+      max_retries: 5,
+    }
   }
 }
 
@@ -42,6 +48,7 @@ impl Default for ReqwestFetcherConfig {
 #[derive(Clone, Default)]
 pub struct ReqwestFetcher {
   client: reqwest::Client,
+  config: ReqwestFetcherConfig,
 }
 
 impl ReqwestFetcher {
@@ -49,7 +56,7 @@ impl ReqwestFetcher {
   pub fn new(config: ReqwestFetcherConfig) -> Self {
     let mut builder = reqwest::Client::builder();
 
-    if let Some(user_agent) = config.user_agent {
+    if let Some(user_agent) = config.user_agent.clone() {
       builder = builder.user_agent(user_agent);
     }
 
@@ -57,15 +64,44 @@ impl ReqwestFetcher {
       .build()
       .map_err(|e| Error::Unexpected(format!("Failed to build HTTP client: {}", e)))
       .unwrap();
-    Self { client }
+    Self { client, config }
   }
 }
 
 impl Fetcher for ReqwestFetcher {
   #[tracing::instrument(skip(self), fields(url=%url))]
   async fn fetch(&self, url: &Url) -> Result<FetchedContent, Error> {
-    tracing::debug!("sending HTTP GET");
-    let response = self.client.get(url.as_str()).send().await?;
+    let url_str = url.as_str().to_string();
+    let client = self.client.clone();
+
+    // Define the fetch operation.
+    let fetch_op = || async {
+      tracing::debug!("Sending HTTP GET");
+      let resp = client
+        .get(&url_str)
+        .send()
+        .await
+        .map_err(Error::HttpFetch)?;
+      let status = resp.status();
+      if status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
+        tracing::warn!(status = %status, "Transient HTTP error, will retry");
+        return Err(Error::TransientHttp(status.as_u16()));
+      }
+      Ok(resp)
+    };
+
+    // Try fetching URL with retries.
+    let max_retries = self.config.max_retries;
+    let response = fetch_op
+      .retry(
+        ExponentialBuilder::default()
+          .with_max_times(max_retries)
+          .with_jitter(),
+      )
+      .notify(|err, dur| {
+        tracing::warn!(error = %err, wait = ?dur, "Retrying HTTP fetch");
+      })
+      .await?;
 
     let status = response.status().as_u16();
     tracing::debug!(status, "received response");
@@ -102,6 +138,7 @@ mod tests {
 
     let fetcher = ReqwestFetcher {
       client: reqwest::Client::new(),
+      config: ReqwestFetcherConfig::default(),
     };
 
     let url = Url::parse(&format!("{}/ok", server.base_url())).unwrap();
@@ -126,6 +163,7 @@ mod tests {
 
     let fetcher = ReqwestFetcher {
       client: reqwest::Client::new(),
+      config: ReqwestFetcherConfig::default(),
     };
 
     let url = Url::parse(&format!("{}/notfound", server.base_url())).unwrap();
@@ -151,6 +189,10 @@ mod tests {
         .timeout(std::time::Duration::from_secs(2))
         .build()
         .unwrap(),
+      config: ReqwestFetcherConfig {
+        user_agent: None,
+        max_retries: 0,
+      },
     };
 
     fetcher.fetch(&url).await.expect_err("should error");
