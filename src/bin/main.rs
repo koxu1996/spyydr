@@ -29,6 +29,7 @@ async fn main() -> eyre::Result<()> {
   let fetcher_config = spyydr::components::fetcher::ReqwestFetcherConfig {
     user_agent: Some(args.user_agent.clone()),
     max_retries: args.max_retries,
+    timeout: Some(std::time::Duration::from_secs(args.request_timeout)),
   };
   let fetcher = spyydr::components::fetcher::ReqwestFetcher::new(fetcher_config);
   let extractor = spyydr::components::extractor::HtmlExtractor;

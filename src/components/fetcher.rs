@@ -33,6 +33,7 @@ impl Fetcher for NoopFetcher {
 pub struct ReqwestFetcherConfig {
   pub user_agent: Option<String>,
   pub max_retries: usize,
+  pub timeout: Option<std::time::Duration>,
 }
 
 impl Default for ReqwestFetcherConfig {
@@ -40,6 +41,7 @@ impl Default for ReqwestFetcherConfig {
     Self {
       user_agent: None,
       max_retries: 5,
+      timeout: None,
     }
   }
 }
@@ -59,6 +61,11 @@ impl ReqwestFetcher {
     // Set User-Agent if specified.
     if let Some(user_agent) = config.user_agent.clone() {
       builder = builder.user_agent(user_agent);
+    }
+
+    // Set request timeout if specified.
+    if let Some(timeout) = config.timeout {
+      builder = builder.timeout(timeout);
     }
 
     let client = builder
@@ -193,6 +200,7 @@ mod tests {
       config: ReqwestFetcherConfig {
         user_agent: None,
         max_retries: 0,
+        timeout: None,
       },
     };
 
