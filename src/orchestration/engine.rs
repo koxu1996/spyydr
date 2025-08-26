@@ -39,10 +39,7 @@ impl<Fr: Frontier + Send + 'static, R: Registry, M: Monitor + Send + 'static> En
 
   pub async fn init(&mut self, start_url: &str) -> Result<(), Error> {
     // Initialize the frontier with the starting URL.
-    let url = match url::Url::parse(start_url) {
-      Ok(url) => url,
-      Err(e) => return Err(Error::Unexpected(e.to_string())), // TODO: Use a more specific error type.
-    };
+    let url = url::Url::parse(start_url)?;
     let task = crate::types::CrawlTask {
       url,
       depth: 0,     // Starting depth.
@@ -53,7 +50,7 @@ impl<Fr: Frontier + Send + 'static, R: Registry, M: Monitor + Send + 'static> En
     self.registry.register(&task.url);
 
     // Push the start task to the frontier (via broker).
-    self.broker_svc.push_task(task).await.unwrap(); // TODO: Handle error properly.
+    self.broker_svc.push_task(task).await?;
 
     Ok(())
   }
