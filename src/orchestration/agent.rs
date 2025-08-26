@@ -88,15 +88,16 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
     tracing::debug!("Canonicalized {} links", canonical_links.len());
 
     // Check against the policy.
+    let child_depth = task_depth + 1;
     let admitted_links = canonical_links
       .iter()
-      .filter_map(|link| {
-        let verdict = self.policy.evaluate(link, &task_url, task_depth);
+      .filter_map(|child_link| {
+        let verdict = self.policy.evaluate(child_link, &task_url, child_depth);
         if verdict.allowed {
-          tracing::debug!("Link allowed: {}", link);
-          Some(link.clone())
+          tracing::debug!("Link allowed: {}", child_link);
+          Some(child_link.clone())
         } else {
-          tracing::warn!("Link {} denied by policy: {}", link, verdict.reason);
+          tracing::warn!("Link {} denied by policy: {}", child_link, verdict.reason);
           None
         }
       })
