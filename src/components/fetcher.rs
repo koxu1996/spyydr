@@ -1,4 +1,4 @@
-use backon::{BackoffBuilder, ExponentialBuilder, Retryable};
+use backon::{ExponentialBuilder, Retryable};
 use reqwest::StatusCode;
 use url::Url;
 
