@@ -56,6 +56,7 @@ impl ReqwestFetcher {
   pub fn new(config: ReqwestFetcherConfig) -> Self {
     let mut builder = reqwest::Client::builder();
 
+    // Set User-Agent if specified.
     if let Some(user_agent) = config.user_agent.clone() {
       builder = builder.user_agent(user_agent);
     }
