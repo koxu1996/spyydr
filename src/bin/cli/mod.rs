@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{Parser, ValueHint};
 
 #[derive(Parser, Debug)]
@@ -59,6 +61,10 @@ pub struct Cli {
   /// Interval in seconds for printing progress reports.
   #[arg(long, default_value_t = 10)]
   pub progress_interval: u64,
+
+  /// Save crawled pages as JSON lines to the given file.
+  #[arg(long, value_name = "FILE")]
+  pub output: Option<PathBuf>,
 }
 
 fn validate_agents(s: &str) -> Result<usize, String> {

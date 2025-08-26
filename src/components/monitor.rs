@@ -67,3 +67,45 @@ impl Monitor for ProgressMonitor {
     self.discovered.fetch_add(admitted_links, Ordering::Relaxed);
   }
 }
+
+use std::fs::File;
+use std::io::{BufWriter, Write};
+use std::path::PathBuf;
+
+#[derive(serde::Serialize)]
+pub struct OutputRow {
+  pub url: String,
+  pub status: u16,
+  // pub depth: u32,
+  // pub parent: Option<String>,
+}
+
+/// Monitor that saves crawl results to a file in JSON lines format.
+pub struct SavingMonitor {
+  writer: std::sync::Mutex<BufWriter<File>>,
+}
+
+impl SavingMonitor {
+  pub fn new(path: PathBuf) -> Self {
+    let file = File::create(path).expect("failed to create output file");
+    let writer = BufWriter::new(file);
+    Self {
+      writer: std::sync::Mutex::new(writer),
+    }
+  }
+}
+
+impl Monitor for SavingMonitor {
+  fn on_task_ready(&self, url: url::Url, status: u16, _found: usize, _admitted: usize) {
+    let row = OutputRow {
+      url: url.to_string(),
+      status,
+    };
+
+    if let Ok(json) = serde_json::to_string(&row) {
+      let mut writer = self.writer.lock().unwrap();
+      let _ = writeln!(writer, "{json}");
+      let _ = writer.flush(); // Ensure data is written promptly.
+    }
+  }
+}
