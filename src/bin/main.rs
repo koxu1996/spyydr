@@ -38,10 +38,12 @@ async fn main() -> eyre::Result<()> {
   let policy =
     spyydr::components::policy::SimplePolicy::new(args.max_depth, args.whitelist, args.blacklist);
   let registry = Arc::new(spyydr::components::registry::InMemoryRegistry::new());
-  let monitor = spyydr::components::monitor::WithProgressMonitor::new(
-    spyydr::components::monitor::ConsoleMonitor,
-  );
-  monitor.spawn_reporter(args.progress_interval);
+  let progress_monitor = spyydr::components::monitor::ProgressMonitor::default();
+  progress_monitor.spawn_reporter(args.progress_interval);
+  let monitor = spyydr::components::monitor::MultiMonitor(vec![
+    Box::new(spyydr::components::monitor::ConsoleMonitor),
+    Box::new(spyydr::components::monitor::ProgressMonitor::default()),
+  ]);
 
   let mut engine =
     spyydr::orchestration::engine::Engine::new(frontier, registry.clone(), monitor).await;
