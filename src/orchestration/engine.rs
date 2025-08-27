@@ -76,9 +76,12 @@ impl<Fr: Frontier + Send + 'static, R: Registry, M: Monitor + Send + 'static> En
   }
 
   // Wait for the broker worker to finish.
-  // NOTE: It requires that all references to the broker service are dropped.
+  // It takes self in order to return ownership of the broker handle.
+  // NOTE: It requires that other references to the broker service are dropped.
   pub async fn wait_for_shutdown(self) -> Result<(), Error> {
     tracing::info!("Waiting for broker worker to shut down");
+    // Drop the broker service to allow the broker worker to finish.
+    drop(self.broker_svc);
     self
       .broker_handle
       .await

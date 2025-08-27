@@ -102,10 +102,13 @@ async fn main() -> eyre::Result<()> {
   // Wait until progress monitor finishes.
   progress_monitor_handle.await.unwrap();
 
+  // Drop broker service to allow the broker worker to finish.
+  drop(broker_svc);
+
   // Wait for engine shutdown.
   engine.wait_for_shutdown().await?;
 
-  println!("Crawl finished gracefully.");
+  println!("Crawling stopped gracefully.");
 
   Ok(())
 }
