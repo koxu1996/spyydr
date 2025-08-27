@@ -155,7 +155,7 @@ mod tests {
       when.method(GET).path("/ok");
       then
         .status(200)
-        .header("content-type", "text/plain")
+        .header("content-type", "text/html")
         .body("hello world");
     });
 
@@ -180,7 +180,7 @@ mod tests {
       when.method(GET).path("/notfound");
       then
         .status(404)
-        .header("content-type", "text/plain")
+        .header("content-type", "text/html")
         .body("missing");
     });
 
@@ -220,5 +220,30 @@ mod tests {
     };
 
     fetcher.fetch(&url).await.expect_err("should error");
+  }
+
+  #[tokio::test]
+  async fn reqwest_fetcher_non_html_body_empty() {
+    let server = MockServer::start();
+    let m = server.mock(|when, then| {
+      when.method(GET).path("/image");
+      then
+        .status(200)
+        .header("content-type", "image/png")
+        .body(vec![137, 80, 78, 71]); // PNG file signature bytes
+    });
+
+    let fetcher = ReqwestFetcher {
+      client: reqwest::Client::new(),
+      config: ReqwestFetcherConfig::default(),
+    };
+
+    let url = Url::parse(&format!("{}/image", server.base_url())).unwrap();
+    let page = fetcher.fetch(&url).await.expect("fetch ok");
+
+    m.assert();
+    assert_eq!(page.url, url);
+    assert_eq!(page.status, 200);
+    assert_eq!(page.body, ""); // Body should be empty for non-HTML
   }
 }
