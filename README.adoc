@@ -2,6 +2,8 @@
 
 A simple command-line web crawler built on top of modular, reusable components. Spyydr demonstrates how to architect a production-quality crawler using a clean separation of concerns - each component handles a single responsibility and can be independently tested, configured, or replaced.
 
+image::./assets/cli-demo.gif[Demo of Spyydr CLI, width=1459]
+
 == Overview
 
 Spyydr addresses the classic web crawling problem: given a starting URL, systematically discover and visit web pages by following HTML links. The CLI provides a straightforward interface to configure and run crawls, while the underlying modular architecture enables easy extension and customization for different use cases.
