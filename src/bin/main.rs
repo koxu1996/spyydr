@@ -6,6 +6,8 @@ use color_eyre::eyre;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
+use spyydr::components::{canonicalizer, extractor, fetcher, frontier, monitor, policy, registry};
+
 use crate::cli::Cli;
 
 mod cli;
@@ -41,8 +43,8 @@ async fn main() -> eyre::Result<()> {
   }
 
   // Create engine components.
-  let frontier = spyydr::components::frontier::BfsFrontier::default();
-  let registry = Arc::new(spyydr::components::registry::InMemoryRegistry::new());
+  let frontier = frontier::BfsFrontier::default();
+  let registry = Arc::new(registry::InMemoryRegistry::new());
   let (monitor, progress_monitor_handle) = create_monitor(args.clone(), shutdown.clone());
   let mut engine =
     spyydr::orchestration::engine::Engine::new(frontier, registry.clone(), monitor).await;
@@ -66,8 +68,8 @@ async fn main() -> eyre::Result<()> {
     let handle = tokio::spawn(async move {
       // Construct stateless components.
       let fetcher = create_fetcher(&args);
-      let extractor = create_extractor();
-      let canonicalizer = create_canonicalizer();
+      let extractor = create_extractor(&args);
+      let canonicalizer = create_canonicalizer(&args);
       let policy = create_policy(&args);
 
       // Construct agent.
@@ -106,25 +108,25 @@ async fn main() -> eyre::Result<()> {
   Ok(())
 }
 
-fn create_fetcher(args: &Cli) -> spyydr::components::fetcher::ReqwestFetcher {
-  let config = spyydr::components::fetcher::ReqwestFetcherConfig {
+fn create_fetcher(args: &Cli) -> fetcher::ReqwestFetcher {
+  let config = fetcher::ReqwestFetcherConfig {
     user_agent: Some(args.user_agent.clone()),
     max_retries: args.max_retries,
     timeout: Some(std::time::Duration::from_secs(args.request_timeout)),
   };
-  spyydr::components::fetcher::ReqwestFetcher::new(config)
+  fetcher::ReqwestFetcher::new(config)
 }
 
-fn create_extractor() -> impl spyydr::components::extractor::Extractor {
-  spyydr::components::extractor::HtmlExtractor
+fn create_extractor(_args: &Cli) -> impl extractor::Extractor {
+  extractor::HtmlExtractor
 }
 
-fn create_canonicalizer() -> impl spyydr::components::canonicalizer::Canonicalizer {
-  spyydr::components::canonicalizer::NoQueryCanonicalizer
+fn create_canonicalizer(_args: &Cli) -> impl canonicalizer::Canonicalizer {
+  canonicalizer::NoQueryCanonicalizer
 }
 
-fn create_policy(args: &Cli) -> impl spyydr::components::policy::Policy {
-  spyydr::components::policy::SimplePolicy::new(
+fn create_policy(args: &Cli) -> impl policy::Policy {
+  policy::SimplePolicy::new(
     args.max_depth,
     args.whitelist.clone(),
     args.blacklist.clone(),
@@ -134,22 +136,19 @@ fn create_policy(args: &Cli) -> impl spyydr::components::policy::Policy {
 fn create_monitor(
   args: Cli,
   shutdown: Arc<AtomicBool>,
-) -> (
-  impl spyydr::components::monitor::Monitor,
-  tokio::task::JoinHandle<()>,
-) {
-  let mut monitors: Vec<Box<dyn spyydr::components::monitor::Monitor + Send + Sync>> =
-    vec![Box::new(spyydr::components::monitor::ConsoleMonitor)];
+) -> (impl monitor::Monitor, tokio::task::JoinHandle<()>) {
+  let mut monitors: Vec<Box<dyn monitor::Monitor + Send + Sync>> =
+    vec![Box::new(monitor::ConsoleMonitor)];
 
-  let progress_monitor = spyydr::components::monitor::ProgressMonitor::default();
+  let progress_monitor = monitor::ProgressMonitor::default();
   let progress_handle = progress_monitor.spawn_reporter(args.progress_interval, shutdown.clone());
   monitors.push(Box::new(progress_monitor));
 
   if let Some(output_path) = &args.output {
-    let saving_monitor = spyydr::components::monitor::SavingMonitor::new(output_path.clone());
+    let saving_monitor = monitor::SavingMonitor::new(output_path.clone());
     monitors.push(Box::new(saving_monitor));
   }
 
-  let multi_monitor = spyydr::components::monitor::MultiMonitor(monitors);
+  let multi_monitor = monitor::MultiMonitor(monitors);
   (multi_monitor, progress_handle)
 }
