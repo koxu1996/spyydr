@@ -37,7 +37,7 @@ async fn main() -> eyre::Result<()> {
       tokio::signal::ctrl_c()
         .await
         .expect("Failed to listen for Ctrl+C");
-      eprintln!("Received Ctrl+C, shutting down...");
+      tracing::warn!("Received Ctrl+C, shutting down...");
       shutdown.store(true, Ordering::Relaxed);
     });
   }
@@ -109,7 +109,7 @@ async fn main() -> eyre::Result<()> {
   // Wait for engine shutdown.
   engine.wait_for_shutdown().await?;
 
-  println!("Crawling stopped gracefully.");
+  tracing::info!("Crawling stopped gracefully.");
 
   Ok(())
 }
