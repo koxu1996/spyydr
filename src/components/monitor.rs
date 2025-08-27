@@ -67,7 +67,7 @@ impl ProgressMonitor {
         if last_report.elapsed() >= interval {
           let d = discovered.load(Ordering::Relaxed);
           let f = fetched.load(Ordering::Relaxed);
-          println!("📊 Progress: discovered: {}, fetched: {}", d + f, f);
+          println!("📊 Progress: {}/{}", f, d);
 
           last_report = Instant::now();
         }
