@@ -69,6 +69,10 @@ pub struct Cli {
   /// Disable URL canonicalization (removing query parameters).
   #[arg(long)]
   pub disable_canonicalizer: bool,
+
+  /// Maximum number of pages to fetch before stopping
+  #[arg(long)]
+  pub max_pages: Option<usize>,
 }
 
 fn validate_agents(s: &str) -> Result<usize, String> {

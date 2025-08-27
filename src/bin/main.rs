@@ -46,8 +46,15 @@ async fn main() -> eyre::Result<()> {
   let frontier = frontier::BfsFrontier::default();
   let registry = Arc::new(registry::InMemoryRegistry::new());
   let (monitor, progress_monitor_handle) = create_monitor(args.clone(), shutdown.clone());
-  let mut engine =
-    spyydr::orchestration::engine::Engine::new(frontier, registry.clone(), monitor).await;
+  let max_tasks_processed = args.max_pages;
+  let mut engine = spyydr::orchestration::engine::Engine::new(
+    frontier,
+    registry.clone(),
+    monitor,
+    max_tasks_processed,
+    shutdown.clone(),
+  )
+  .await;
   let broker_svc = engine.get_broker_svc().clone();
   let registry = engine.get_registry();
 

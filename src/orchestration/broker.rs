@@ -1,3 +1,7 @@
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
@@ -122,16 +126,29 @@ pub struct BrokerWorker<Fr: Frontier, M: Monitor> {
   frontier: Fr,
   monitor: M,
   rx: mpsc::Receiver<BrokerCommand>,
+  /// Mechanism to stop after a certain number of pages.
+  tasks_processed: usize,
+  max_tasks_processed: Option<usize>,
+  shutdown: Arc<AtomicBool>,
 }
 
 impl<Fr: Frontier + Send + 'static, M: Monitor + Send + 'static> BrokerWorker<Fr, M> {
   /// Spawns a new broker worker thread.
-  pub fn spawn(rx: mpsc::Receiver<BrokerCommand>, frontier: Fr, monitor: M) -> JoinHandle<()> {
+  pub fn spawn(
+    rx: mpsc::Receiver<BrokerCommand>,
+    frontier: Fr,
+    monitor: M,
+    max_tasks_processed: Option<usize>,
+    shutdown: Arc<AtomicBool>,
+  ) -> JoinHandle<()> {
     tokio::spawn(async move {
       Self {
         frontier,
         rx,
         monitor,
+        tasks_processed: 0,
+        max_tasks_processed,
+        shutdown,
       }
       .run()
       .await;
@@ -183,6 +200,18 @@ impl<Fr: Frontier + Send + 'static, M: Monitor + Send + 'static> BrokerWorker<Fr
             .monitor
             .on_task_ready(&task, status, links_found, admitted_links);
           // No ACK needed.
+
+          // Increment processed counter and enforce limit.
+          self.tasks_processed += 1;
+          if let Some(limit) = self.max_tasks_processed {
+            if self.tasks_processed >= limit && !self.shutdown.swap(true, Ordering::Relaxed) {
+              tracing::warn!(
+                processed = self.tasks_processed,
+                limit,
+                "Max pages reached; broker triggers shutdown"
+              );
+            }
+          }
         }
       }
     }

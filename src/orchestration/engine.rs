@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use tokio::task::JoinHandle;
 
@@ -25,13 +26,19 @@ pub struct Engine<Fr: Frontier, R: Registry, M: Monitor> {
 }
 
 impl<Fr: Frontier + Send + 'static, R: Registry, M: Monitor + Send + 'static> Engine<Fr, R, M> {
-  pub async fn new(frontier: Fr, registry: Arc<R>, monitor: M) -> Self {
+  pub async fn new(
+    frontier: Fr,
+    registry: Arc<R>,
+    monitor: M,
+    max_tasks_processed: Option<usize>,
+    shutdown: Arc<AtomicBool>,
+  ) -> Self {
     tracing::info!(
       "Initializing Engine with default broker capacity: {}",
       DEFAULT_BROKER_CAPACITY
     );
     let (broker_svc, rx) = CrawlBrokerService::new_bounded(DEFAULT_BROKER_CAPACITY).await;
-    let broker_handle = BrokerWorker::spawn(rx, frontier, monitor);
+    let broker_handle = BrokerWorker::spawn(rx, frontier, monitor, max_tasks_processed, shutdown);
     tracing::info!("Broker worker spawned");
 
     Engine {
