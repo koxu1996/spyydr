@@ -19,7 +19,9 @@ use clap::{Parser, ValueHint};
       |_|    |___/ |___/
 
 Spyydr 🕷️ - A simple yet powerful web crawler built in Rust.
-It takes a starting URL, crawls linked pages, and prints out discovered links."#,
+It starts from a seed URL, follows HTML links to discover new pages, and reports them.
+
+NOTE: This CLI is a minimal example built on modular crawler components."#,
   after_help = "Project: https://gitlab.com/andrzej1_1/spyydr"
 )]
 pub struct Cli {
