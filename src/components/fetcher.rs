@@ -24,7 +24,6 @@ impl Fetcher for NoopFetcher {
       url: url.clone(),
       status: 200,
       body: "Noop fetcher response".to_string(),
-      // elapsed: Duration::from_millis(0), // Placeholder for elapsed time
     })
   }
 }
@@ -139,7 +138,6 @@ impl Fetcher for ReqwestFetcher {
       url: url.clone(),
       status,
       body,
-      // elapsed: Duration::from_millis(0), // Placeholder for elapsed time
     })
   }
 }
