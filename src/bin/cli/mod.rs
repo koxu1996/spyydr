@@ -75,6 +75,7 @@ pub struct Cli {
   pub max_pages: Option<usize>,
 }
 
+/// Checks that the number of agents is a positive integer.
 fn validate_agents(s: &str) -> Result<usize, String> {
   let val: usize = s.parse().map_err(|_| format!("Invalid number: {s}"))?;
   if val == 0 {
