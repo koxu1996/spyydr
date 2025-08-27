@@ -121,8 +121,9 @@ fn create_extractor(_args: &Cli) -> impl extractor::Extractor {
   extractor::HtmlExtractor
 }
 
-fn create_canonicalizer(_args: &Cli) -> impl canonicalizer::Canonicalizer {
-  canonicalizer::NoQueryCanonicalizer
+fn create_canonicalizer(args: &Cli) -> impl canonicalizer::Canonicalizer {
+  let enabled = !args.disable_canonicalizer;
+  canonicalizer::QueryCanonicalizer::new(enabled)
 }
 
 fn create_policy(args: &Cli) -> impl policy::Policy {

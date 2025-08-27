@@ -65,6 +65,10 @@ pub struct Cli {
   /// Save crawled pages as JSON lines to the given file.
   #[arg(long, value_name = "FILE")]
   pub output: Option<PathBuf>,
+
+  /// Disable URL canonicalization (removing query parameters).
+  #[arg(long)]
+  pub disable_canonicalizer: bool,
 }
 
 fn validate_agents(s: &str) -> Result<usize, String> {

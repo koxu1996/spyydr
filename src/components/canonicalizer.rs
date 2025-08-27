@@ -7,14 +7,33 @@ pub trait Canonicalizer {
   fn canonicalize(&self, url: &Url) -> Result<Url, Error>;
 }
 
-/// Canonicalizer that is focused on base URL, ignoring query parameters.
+/// Canonicalizer that is focused on base URL, ignoring query parameters (+ fragment).
 /// Example: `http://foo.bar/posts?page=123` gets turned into `http://foo.bar/posts`.
-#[derive(Clone, Debug, Default)]
-pub struct NoQueryCanonicalizer;
+#[derive(Clone, Debug)]
+pub struct QueryCanonicalizer {
+  enabled: bool,
+}
 
-impl Canonicalizer for NoQueryCanonicalizer {
+impl QueryCanonicalizer {
+  pub fn new(enabled: bool) -> Self {
+    Self { enabled }
+  }
+}
+
+impl Default for QueryCanonicalizer {
+  fn default() -> Self {
+    Self { enabled: true }
+  }
+}
+
+impl Canonicalizer for QueryCanonicalizer {
   #[tracing::instrument(skip(self), fields(input = %url))]
   fn canonicalize(&self, url: &Url) -> Result<Url, Error> {
+    if !self.enabled {
+      tracing::trace!("canonicalization disabled; returning original URL");
+      return Ok(url.clone());
+    }
+
     let mut new_url = url.clone();
 
     // Remove query.
@@ -51,7 +70,7 @@ mod tests {
 
   fn canon(s: &str) -> String {
     let url = Url::parse(s).unwrap();
-    let c = NoQueryCanonicalizer;
+    let c = QueryCanonicalizer::default();
     c.canonicalize(&url).unwrap().to_string()
   }
 
@@ -71,5 +90,14 @@ mod tests {
     // but this test ensures our canonical form matches that expectation.
     assert_eq!(canon("http://example.com"), "http://example.com/");
     assert_eq!(canon("https://example.com"), "https://example.com/");
+  }
+
+  #[test]
+  fn noop_mode_returns_input() {
+    let input = "http://example.com/?a=1#frag";
+    let url = Url::parse(input).unwrap();
+    let c = QueryCanonicalizer::new(false);
+    let out = c.canonicalize(&url).unwrap();
+    assert_eq!(out.as_str(), input);
   }
 }
