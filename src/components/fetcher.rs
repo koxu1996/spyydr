@@ -132,7 +132,7 @@ impl Fetcher for ReqwestFetcher {
       }
     };
     tracing::debug!(body_len = body.len(), "body read");
-    tracing::trace!(body = %body, "body content");
+    //tracing::trace!(body = %body, "body content"); // Too large...
 
     Ok(FetchedContent {
       url: url.clone(),
