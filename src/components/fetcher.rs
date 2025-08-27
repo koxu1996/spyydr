@@ -114,7 +114,24 @@ impl Fetcher for ReqwestFetcher {
     let status = response.status().as_u16();
     tracing::debug!(status, "received response");
 
-    let body = response.text().await?;
+    // Read body, but only if Content-Type is text/html.
+    // Other types (images, binaries) will just get empty body.
+    let is_html = response
+      .headers()
+      .get(reqwest::header::CONTENT_TYPE)
+      .and_then(|v| v.to_str().ok())
+      .map(|ct| ct.starts_with("text/html"))
+      .unwrap_or(false);
+    let body = match is_html {
+      true => {
+        tracing::debug!("HTML content, reading body");
+        response.text().await?
+      }
+      false => {
+        tracing::debug!("non-HTML content, replacing with empty body");
+        String::new()
+      }
+    };
     tracing::debug!(body_len = body.len(), "body read");
     tracing::trace!(body = %body, "body content");
 
