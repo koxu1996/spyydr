@@ -203,14 +203,15 @@ impl<Fr: Frontier + Send + 'static, M: Monitor + Send + 'static> BrokerWorker<Fr
 
           // Increment processed counter and enforce limit.
           self.tasks_processed += 1;
-          if let Some(limit) = self.max_tasks_processed {
-            if self.tasks_processed >= limit && !self.shutdown.swap(true, Ordering::Relaxed) {
-              tracing::warn!(
-                processed = self.tasks_processed,
-                limit,
-                "Max pages reached; broker triggers shutdown"
-              );
-            }
+          if let Some(limit) = self.max_tasks_processed
+            && self.tasks_processed >= limit
+            && !self.shutdown.swap(true, Ordering::Relaxed)
+          {
+            tracing::warn!(
+              processed = self.tasks_processed,
+              limit,
+              "Max pages reached; broker triggers shutdown"
+            );
           }
         }
       }
