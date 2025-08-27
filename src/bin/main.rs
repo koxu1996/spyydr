@@ -40,12 +40,16 @@ async fn main() -> eyre::Result<()> {
     spyydr::components::policy::SimplePolicy::new(args.max_depth, args.whitelist, args.blacklist);
   let registry = Arc::new(spyydr::components::registry::InMemoryRegistry::new());
 
+  // Shared shutdown signal.
+  let shutdown = Arc::new(AtomicBool::new(false));
+
   // Monitoring setup.
   let console_monitor = spyydr::components::monitor::ConsoleMonitor;
   let mut monitors: Vec<Box<dyn spyydr::components::monitor::Monitor + Send + Sync>> =
     vec![Box::new(console_monitor)];
   let progress_monitor = spyydr::components::monitor::ProgressMonitor::default();
-  progress_monitor.spawn_reporter(args.progress_interval);
+  let progress_monitor_handle =
+    progress_monitor.spawn_reporter(args.progress_interval, shutdown.clone());
   monitors.push(Box::new(progress_monitor));
   if let Some(output_path) = &args.output {
     let saving_monitor = spyydr::components::monitor::SavingMonitor::new(output_path.clone());
@@ -59,7 +63,6 @@ async fn main() -> eyre::Result<()> {
   let registry = engine.get_registry();
 
   // Triggering shutdown signal via Ctrl+C.
-  let shutdown = Arc::new(AtomicBool::new(false));
   {
     let shutdown = shutdown.clone();
     tokio::spawn(async move {
@@ -95,6 +98,9 @@ async fn main() -> eyre::Result<()> {
   for handle in agent_handles {
     handle.await.unwrap();
   }
+
+  // Wait until progress monitor finishes.
+  progress_monitor_handle.await.unwrap();
 
   // Wait for engine shutdown.
   engine.wait_for_shutdown().await?;

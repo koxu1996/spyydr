@@ -35,7 +35,7 @@ impl Monitor for MultiMonitor {
 }
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 /// Monitor that tracks progress and periodically reports it.
 #[derive(Clone, Default)]
@@ -45,19 +45,36 @@ pub struct ProgressMonitor {
 }
 
 impl ProgressMonitor {
-  pub fn spawn_reporter(&self, interval_secs: u64) {
+  pub fn spawn_reporter(
+    &self,
+    interval_secs: u64,
+    shutdown: Arc<AtomicBool>,
+  ) -> tokio::task::JoinHandle<()> {
     let discovered = self.discovered.clone();
     let fetched = self.fetched.clone();
+    let interval = Duration::from_secs(interval_secs);
 
-    tokio::spawn(async move {
+    let handle = tokio::spawn(async move {
+      let mut last_report = Instant::now();
+
       loop {
-        tokio::time::sleep(std::time::Duration::from_secs(interval_secs)).await;
+        if shutdown.load(Ordering::Relaxed) {
+          tracing::info!("Progress monitor shutting down by signal");
+          break;
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await; // Faster polling for shutdown.
 
-        let d = discovered.load(Ordering::Relaxed);
-        let f = fetched.load(Ordering::Relaxed);
-        println!("📊 Progress: discovered: {}, fetched: {}", d + f, f);
+        if last_report.elapsed() >= interval {
+          let d = discovered.load(Ordering::Relaxed);
+          let f = fetched.load(Ordering::Relaxed);
+          println!("📊 Progress: discovered: {}, fetched: {}", d + f, f);
+
+          last_report = Instant::now();
+        }
       }
     });
+
+    handle
   }
 }
 
@@ -77,6 +94,7 @@ impl Monitor for ProgressMonitor {
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use crate::types::CrawlTask;
 
