@@ -125,3 +125,40 @@ The compiled binary will be available at `target/release/spyydr-cli`.
 | Disable URL canonicalization
 | false
 |===
+
+== Behavior and Output
+
+=== Standard Output
+
+The crawler provides real-time feedback:
+
+[source,text]
+----
+✓ Visited: https://example.com/page1 (status: 200, 15 links found, 8 added to frontier)
+✓ Visited: https://example.com/page2 (status: 404, 0 links found, 0 added to frontier)
+📊 Progress: 1250/2100
+----
+
+=== JSON Lines Output
+
+When using `--output`, each crawled page generates a JSON record:
+
+[source,json]
+----
+{"url":"https://example.com/","status":200,"depth":0,"parent":null}
+{"url":"https://example.com/about","status":200,"depth":1,"parent":"https://example.com/"}
+{"url":"https://example.com/contact","status":200,"depth":1,"parent":"https://example.com/"}
+----
+
+=== Logging
+
+Structured logging provides detailed insight:
+
+[source,bash]
+----
+# Enable debug logging
+RUST_LOG=debug ./spyydr-cli https://example.com
+
+# Enable trace logging for specific components
+RUST_LOG=spyydr::components::fetcher=trace ./spyydr-cli https://example.com
+----
