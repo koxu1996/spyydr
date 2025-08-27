@@ -54,7 +54,7 @@ impl ProgressMonitor {
     let fetched = self.fetched.clone();
     let interval = Duration::from_secs(interval_secs);
 
-    let handle = tokio::spawn(async move {
+    tokio::spawn(async move {
       let mut last_report = Instant::now();
 
       loop {
@@ -72,9 +72,7 @@ impl ProgressMonitor {
           last_report = Instant::now();
         }
       }
-    });
-
-    handle
+    })
   }
 }
 
