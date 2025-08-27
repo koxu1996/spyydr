@@ -17,15 +17,8 @@ mod cli;
 async fn main() -> eyre::Result<()> {
   color_eyre::install()?;
 
-  // Enable console logger, defaulting to "info" level.
-  let filter = tracing_subscriber::EnvFilter::builder()
-    .with_default_directive("info".parse()?)
-    .from_env()?;
-  let layer = tracing_subscriber::fmt::layer();
-  tracing_subscriber::registry()
-    .with(filter)
-    .with(layer)
-    .init();
+  // Enable logging.
+  init_tracing()?;
 
   // Parse command-line arguments.
   let args = Cli::parse();
@@ -109,6 +102,19 @@ async fn main() -> eyre::Result<()> {
 
   tracing::info!("Crawling stopped gracefully.");
 
+  Ok(())
+}
+
+// Configure console logger, defaulting to "info" level.
+fn init_tracing() -> eyre::Result<()> {
+  let filter = tracing_subscriber::EnvFilter::builder()
+    .with_default_directive("info".parse()?)
+    .from_env()?;
+  let layer = tracing_subscriber::fmt::layer();
+  tracing_subscriber::registry()
+    .with(filter)
+    .with(layer)
+    .try_init()?;
   Ok(())
 }
 
