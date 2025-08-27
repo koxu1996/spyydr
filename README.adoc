@@ -1,0 +1,125 @@
+= Spyydr 🕷️
+
+A simple command-line web crawler built on top of modular, reusable components. Spyydr demonstrates how to architect a production-quality crawler using a clean separation of concerns - each component handles a single responsibility and can be independently tested, configured, or replaced.
+
+== Overview
+
+Spyydr addresses the classic web crawling problem: given a starting URL, systematically discover and visit web pages by following HTML links. The CLI provides a straightforward interface to configure and run crawls, while the underlying modular architecture enables easy extension and customization for different use cases.
+
+== Features
+
+* *Concurrent Crawling*: Multiple agents crawl simultaneously for improved throughput
+* *Configurable Depth Limiting*: Control how deep the crawler explores from the starting URL
+* *Domain Filtering*: Whitelist/blacklist domains to control crawling scope
+* *URL Canonicalization*: Normalize URLs by removing query parameters and fragments
+* *Progress Monitoring*: Real-time progress reporting and comprehensive logging
+* *Output Export*: Save crawled pages as JSON lines for analysis
+* *Graceful Shutdown*: Clean termination via Ctrl+C with proper resource cleanup
+* *Page Limits*: Configurable maximum number of pages to crawl
+* *Retry Logic*: Exponential backoff for transient HTTP errors
+
+== Installation
+
+=== Prerequisites
+
+* Rust 1.70+ (uses 2024 edition)
+* Cargo package manager
+
+=== Building from Source
+
+[source,bash]
+----
+git clone https://gitlab.com/andrzej1_1/spyydr
+cd spyydr
+cargo build --release
+----
+
+The compiled binary will be available at `target/release/spyydr-cli`.
+
+== Usage
+
+=== Basic Usage
+
+[source,bash]
+----
+# Crawl a single website
+./spyydr-cli https://example.com
+
+# Crawl with 4 concurrent agents
+./spyydr-cli https://example.com --agents 4
+
+# Limit crawl depth to 2 levels
+./spyydr-cli https://example.com --max-depth 2
+----
+
+=== Advanced Options
+
+[source,bash]
+----
+# Complete example with all major options
+./spyydr-cli https://example.com \
+  --agents 8 \
+  --max-depth 3 \
+  --max-pages 1000 \
+  --whitelist example.com,subdomain.example.com \
+  --request-timeout 15 \
+  --max-retries 3 \
+  --progress-interval 30 \
+  --output crawl-results.jsonl \
+  --user-agent "MyBot/1.0 (+https://mysite.com/bot)"
+----
+
+=== Command Line Options
+
+[options="header"]
+|===
+| Option | Description | Default
+
+| `START_URL`
+| Starting URL (seed) for the crawl
+| Required
+
+| `-a, --agents`
+| Number of concurrent crawlers
+| 1
+
+| `--max-depth`
+| Maximum crawl depth (0 = start URL only)
+| Unlimited
+
+| `--max-pages`
+| Maximum number of pages to crawl
+| Unlimited
+
+| `--whitelist`
+| Comma-separated list of allowed domains
+| None
+
+| `--blacklist`
+| Comma-separated list of blocked domains
+| None
+
+| `--request-timeout`
+| HTTP request timeout in seconds
+| 10
+
+| `--max-retries`
+| Max retries for transient HTTP errors
+| 5
+
+| `--progress-interval`
+| Progress report interval in seconds
+| 10
+
+| `--output`
+| Save results to JSON lines file
+| None
+
+| `--user-agent`
+| Custom User-Agent header
+| SpyydrBot/1.0
+
+| `--disable-canonicalizer`
+| Disable URL canonicalization
+| false
+|===
