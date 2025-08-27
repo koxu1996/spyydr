@@ -113,7 +113,7 @@ fn create_fetcher(args: &Cli) -> fetcher::ReqwestFetcher {
     max_retries: args.max_retries,
     timeout: Some(std::time::Duration::from_secs(args.request_timeout)),
   };
-  fetcher::ReqwestFetcher::new(config)
+  fetcher::ReqwestFetcher::new(config).unwrap()
 }
 
 fn create_extractor(_args: &Cli) -> impl extractor::Extractor {

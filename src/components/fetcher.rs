@@ -55,7 +55,7 @@ pub struct ReqwestFetcher {
 
 impl ReqwestFetcher {
   /// Create a new ReqwestFetcher with configuration.
-  pub fn new(config: ReqwestFetcherConfig) -> Self {
+  pub fn new(config: ReqwestFetcherConfig) -> Result<Self, Error> {
     let mut builder = reqwest::Client::builder();
 
     // Set User-Agent if specified.
@@ -70,9 +70,9 @@ impl ReqwestFetcher {
 
     let client = builder
       .build()
-      .map_err(|e| Error::Unexpected(format!("Failed to build HTTP client: {}", e)))
-      .unwrap();
-    Self { client, config }
+      .map_err(|e| Error::Unexpected(format!("Failed to build HTTP client: {}", e)))?;
+
+    Ok(Self { client, config })
   }
 }
 
