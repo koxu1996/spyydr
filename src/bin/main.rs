@@ -96,6 +96,9 @@ async fn main() -> eyre::Result<()> {
     handle.await.unwrap();
   }
 
+  // Wait for engine shutdown.
+  engine.wait_for_shutdown().await?;
+
   println!("Crawl finished gracefully.");
 
   Ok(())

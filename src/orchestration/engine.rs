@@ -18,7 +18,7 @@ pub struct Engine<Fr: Frontier, R: Registry, M: Monitor> {
   registry: Arc<R>,
   // Broker is used to distribute tasks (wraps frontier).
   broker_frontier_type: PhantomData<Fr>,
-  _broker_handle: JoinHandle<()>, // NOTE: Should be used when graceful shutdown is implemented.
+  broker_handle: JoinHandle<()>,
   broker_svc: CrawlBrokerService,
   // Monitor for observing crawl events.
   monitor_type: PhantomData<M>,
@@ -36,7 +36,7 @@ impl<Fr: Frontier + Send + 'static, R: Registry, M: Monitor + Send + 'static> En
 
     Engine {
       registry,
-      _broker_handle: broker_handle,
+      broker_handle,
       broker_svc,
       broker_frontier_type: PhantomData,
       monitor_type: PhantomData,
@@ -73,5 +73,18 @@ impl<Fr: Frontier + Send + 'static, R: Registry, M: Monitor + Send + 'static> En
 
   pub fn get_broker_svc(&self) -> &CrawlBrokerService {
     &self.broker_svc
+  }
+
+  // Wait for the broker worker to finish.
+  // NOTE: It requires that all references to the broker service are dropped.
+  pub async fn wait_for_shutdown(self) -> Result<(), Error> {
+    tracing::info!("Waiting for broker worker to shut down");
+    self
+      .broker_handle
+      .await
+      .map_err(|e| Error::Unexpected(format!("Unable to join broker worker: {}", e)))?;
+    tracing::info!("Broker worker has shut down");
+
+    Ok(())
   }
 }
