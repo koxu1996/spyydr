@@ -126,7 +126,7 @@ The compiled binary will be available at `target/release/spyydr-cli`.
 | false
 |===
 
-== Behavior and Output
+== Output
 
 === Standard Output
 
@@ -162,3 +162,90 @@ RUST_LOG=debug ./spyydr-cli https://example.com
 # Enable trace logging for specific components
 RUST_LOG=spyydr::components::fetcher=trace ./spyydr-cli https://example.com
 ----
+
+== Architecture & Design Decisions
+
+The crawler is built around a *modular, component-based architecture* that separates concerns and enables flexible configuration.
+
+=== 1. Trait-Based Component System
+
+All major components are defined as traits, each with a clear responsibility:
+
+* *Fetcher* - retrieves web pages over HTTP
+* *Extractor* - parses HTML and extracts links
+* *Canonicalizer* - normalizes and simplifies URLs
+* *Policy* - enforces crawling rules (depth, whitelist/blacklist)
+* *Registry* - tracks discovered and visited URLs, prevents duplicates
+* *Frontier* - manages the crawl queue and scheduling strategy
+* *Monitor* - observes progress and records results
+
+This trait-based design allows components to be swapped or mocked easily, making the system testable and extensible.
+
+=== 2. Shared Registry for URL Deduplication
+
+A single `Registry` instance is shared across all agents using `DashMap` for thread-safe access.
+
+This tracks discovered and visited URLs to prevent duplicate crawling.
+
+The default `InMemoryRegistry` provides no persistence, but the trait-based design allows easy replacement with implementations like `PostgresRegistry` for distributed setups or crash recovery.
+
+=== 3. Stateless Agent Architecture
+
+Each agent is stateless and owns four independent components: `Fetcher`, `Extractor`, `Canonicalizer`, and `Policy`.
+
+Agents apply these components sequentially, then communicate with the broker for a new task requests, submissions, and completion reporting.
+
+Flow for each task: `fetch → extract → canonicalize → policy`
+
+=== 4. Dedicated Broker Worker (Actor Pattern)
+
+A single broker worker handles all agent communication via MPSC channels:
+
+* Receives task completion events from agents
+* Manages task queue operations (push/pop)
+* Coordinates between multiple agents and the frontier
+
+While more complex than using a `Mutex`, this actor-based approach performs better under high contention and provides a clear path toward multi-host distributed crawling.
+
+=== 5. BFS Task Scheduling
+
+The broker delegates task scheduling to a `Frontier` component, which implements breadth-first search (BFS) by default.
+
+This ensures pages are crawled level-by-level from the starting URL, preventing excessive memory usage on deep sites.
+
+== Behavior and Limitations
+
+=== Current Behavior
+
+The crawler exhibits the following behavior patterns:
+
+* *Content Detection*: Only processes responses with `Content-Type` starting with `text/html`; other content types result in empty body processing
+* *Redirect Handling*: Follows HTTP redirects automatically using reqwest's default behavior (up to 10 hops)
+* *Error Retry*: Implements exponential backoff for 429 (Too Many Requests) and 5xx server errors
+* *Shutdown Response*: ~1 second delay when receiving Ctrl+C due to polling-based shutdown mechanism
+
+=== Known Limitations
+
+==== Web Standards Compliance
+
+* *No robots.txt Support*: The crawler doesn't check or respect robots.txt files.
+  For production deployment, this is a significant limitation that could cause issues with site operators.
+  The registry architecture would need to be extended to store per-domain metadata like robots.txt rules.
+
+==== Content Processing
+
+* *Basic Content Detection*: Content-Type detection is simplistic - only checking if it starts with `text/html`.
+  A more robust approach would use crates like `mime_guess` to detect HTML content more reliably,
+  or allow custom `Extractor` implementations to handle other content types (XML sitemaps, RSS feeds, etc.).
+
+==== Network Behavior
+
+* *Naive Retry Logic*: While the crawler retries on transient errors, it doesn't respect `Retry-After` headers that servers may send with 429 responses.
+  Additionally, there's no per-host rate limiting, which could overwhelm target servers.
+* *No Proxy Support*: The current implementation doesn't support HTTP proxies, though this could be added easily through reqwest configuration.
+
+==== System Architecture
+
+* *Shutdown Latency*: The `Arc<AtomicBool>` shutdown mechanism requires polling, causing up to 1-second delays on shutdown.
+  Using `tokio::sync::Notify` would enable immediate task cancellation.
+* *Registry Limitations*: The current registry only tracks URL status (discovered/fetched) but can't store additional metadata that would be useful for production crawling (robots.txt rules, last-modified dates, crawl delays, etc.).
