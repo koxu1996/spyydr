@@ -78,17 +78,27 @@ async fn main() -> eyre::Result<()> {
   let mut agent_handles = vec![];
   let num_agents = args.agents;
   for _agent_id in 0..num_agents {
-    let agent = spyydr::orchestration::agent::Agent::new(
-      fetcher.clone(),
-      extractor.clone(),
-      canonicalizer.clone(),
-      policy.clone(),
-      registry.clone(),
-      broker_svc.clone(),
-    )
-    .await;
+    // Clone shared components.
+    let fetcher = fetcher.clone();
+    let extractor = extractor.clone();
+    let canonicalizer = canonicalizer.clone();
+    let policy = policy.clone();
+    let registry = registry.clone();
+    let broker_svc = broker_svc.clone();
     let shutdown = shutdown.clone();
+
+    // Spawn agent
     let handle = tokio::spawn(async move {
+      let agent = spyydr::orchestration::agent::Agent::new(
+        fetcher,
+        extractor,
+        canonicalizer,
+        policy,
+        registry,
+        broker_svc,
+      )
+      .await;
+
       agent.run(shutdown).await;
     });
     agent_handles.push(handle);
