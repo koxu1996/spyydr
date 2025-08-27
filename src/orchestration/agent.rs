@@ -23,7 +23,7 @@ pub struct Agent<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Regis
 }
 
 impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F, E, C, P, R> {
-  pub async fn new(
+  pub fn new(
     fetcher: F,
     extractor: E,
     canonicalizer: C,

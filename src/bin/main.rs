@@ -80,8 +80,7 @@ async fn main() -> eyre::Result<()> {
         policy,
         registry,
         broker_svc,
-      )
-      .await;
+      );
 
       // Run agent until shutdown signal is received.
       agent.run(shutdown).await;
