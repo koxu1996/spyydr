@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use clap::Parser;
 use color_eyre::eyre;
+use tokio::task::JoinSet;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
@@ -62,7 +63,7 @@ async fn main() -> eyre::Result<()> {
   engine.init(&args.start_url).await?;
 
   // Run the agents.
-  let mut agent_handles = vec![];
+  let mut agent_set = JoinSet::new();
   let num_agents = args.agents;
   for _agent_id in 0..num_agents {
     // Clone shared components.
@@ -72,7 +73,7 @@ async fn main() -> eyre::Result<()> {
     let shutdown = shutdown.clone();
 
     // Spawn agent handle.
-    let handle = tokio::spawn(async move {
+    agent_set.spawn(async move {
       // Construct stateless components.
       let fetcher = create_fetcher(&args);
       let extractor = create_extractor(&args);
@@ -92,13 +93,10 @@ async fn main() -> eyre::Result<()> {
       // Run agent until shutdown signal is received.
       agent.run(shutdown).await;
     });
-    agent_handles.push(handle);
   }
 
   // Wait until agents finish.
-  for handle in agent_handles {
-    handle.await.unwrap();
-  }
+  agent_set.join_all().await;
 
   // Wait until progress monitor finishes.
   progress_monitor_handle.await.unwrap();
