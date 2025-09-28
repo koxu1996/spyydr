@@ -1,0 +1,482 @@
+= Spyydr Web Crawler - High-Level Architecture
+:toc:
+:toclevels: 3
+:numbered:
+
+== System Overview
+
+Spyydr is a modular, production-quality web crawler written in Rust with a clean separation of concerns that enables both multi-threaded and distributed deployment scenarios.
+
+== Core Architecture Diagram
+
+[source,mermaid]
+----
+graph TB
+    subgraph "Application Layer"
+        CLI[CLI Binary<br/>src/bin/main.rs]
+        Engine[Engine<br/>Lifecycle Management]
+    end
+
+    subgraph "Orchestration Layer"
+        Broker[Broker<br/>Task Distribution<br/>Actor Pattern]
+        Agent1[Agent 1<br/>Worker]
+        Agent2[Agent 2<br/>Worker]
+        AgentN[Agent N<br/>Worker]
+    end
+
+    subgraph "Shared State"
+        Registry[Registry<br/>URL Deduplication<br/>Thread-Safe]
+        Frontier[Frontier<br/>Task Queue<br/>BFS Strategy]
+    end
+
+    subgraph "Core Components"
+        Fetcher[Fetcher<br/>HTTP Client]
+        Extractor[Extractor<br/>HTML Parser]
+        Canonicalizer[Canonicalizer<br/>URL Normalization]
+        Policy[Policy<br/>Crawling Rules]
+        Monitor[Monitor<br/>Progress Tracking]
+    end
+
+    CLI --> Engine
+    Engine --> Broker
+    Engine --> Registry
+    Broker --> Frontier
+    Broker --> Agent1
+    Broker --> Agent2
+    Broker --> AgentN
+
+    Agent1 --> Fetcher
+    Agent1 --> Extractor
+    Agent1 --> Canonicalizer
+    Agent1 --> Policy
+    Agent1 --> Registry
+
+    Agent2 --> Fetcher
+    Agent2 --> Extractor
+    Agent2 --> Canonicalizer
+    Agent2 --> Policy
+
+    AgentN --> Fetcher
+    AgentN --> Extractor
+    AgentN --> Canonicalizer
+    AgentN --> Policy
+
+    Engine --> Monitor
+    Monitor --> Output[JSON Lines<br/>Console Output]
+----
+
+== Component Architecture Detailed View
+
+[source,mermaid]
+----
+classDiagram
+    class Engine {
+        +start()
+        +shutdown()
+        +coordinate_components()
+    }
+
+    class Broker {
+        +submit_task(task)
+        +get_task() Task
+        +report_completion(task)
+        +shutdown()
+    }
+
+    class Agent {
+        +process_task(task)
+        -fetcher: Fetcher
+        -extractor: Extractor
+        -canonicalizer: Canonicalizer
+        -policy: Policy
+    }
+
+    class Registry {
+        <<trait>>
+        +register_discovered(urls)
+        +register_fetched(url)
+        +is_fetched(url) bool
+    }
+
+    class InMemoryRegistry {
+        -discovered: DashMap
+        -fetched: DashMap
+        +register_discovered(urls)
+        +register_fetched(url)
+        +is_fetched(url) bool
+    }
+
+    class Frontier {
+        <<trait>>
+        +add_task(task)
+        +pop_task() Option~Task~
+        +is_empty() bool
+    }
+
+    class BfsFrontier {
+        -queue: VecDeque
+        +add_task(task)
+        +pop_task() Option~Task~
+        +is_empty() bool
+    }
+
+    class Fetcher {
+        <<trait>>
+        +fetch(url) Result~FetchedContent~
+    }
+
+    class ReqwestFetcher {
+        -client: Client
+        -config: FetcherConfig
+        +fetch(url) Result~FetchedContent~
+    }
+
+    class Monitor {
+        <<trait>>
+        +on_task_completed(task)
+        +on_urls_discovered(urls)
+    }
+
+    Registry <|-- InMemoryRegistry
+    Frontier <|-- BfsFrontier
+    Fetcher <|-- ReqwestFetcher
+    Monitor <|-- ConsoleMonitor
+    Monitor <|-- ProgressMonitor
+    Monitor <|-- SavingMonitor
+
+    Engine --> Broker
+    Engine --> Registry
+    Broker --> Frontier
+    Broker --> Agent
+    Agent --> Registry
+----
+
+== Data Flow and Processing Pipeline
+
+[source,mermaid]
+----
+sequenceDiagram
+    participant B as Broker
+    participant A as Agent
+    participant F as Fetcher
+    participant E as Extractor
+    participant C as Canonicalizer
+    participant P as Policy
+    participant R as Registry
+    participant M as Monitor
+
+    B->>A: get_task()
+    A->>B: CrawlTask(url, depth)
+
+    A->>F: fetch(url)
+    F->>A: FetchedContent
+
+    A->>E: extract_links(content)
+    E->>A: Vec<Url>
+
+    A->>C: canonicalize(urls)
+    C->>A: Vec<Url>
+
+    A->>P: filter(urls, depth)
+    P->>A: Vec<Url>
+
+    A->>R: register_discovered(urls)
+    R->>A: Vec<new_urls>
+
+    loop For each new URL
+        A->>B: submit_task(CrawlTask)
+    end
+
+    A->>R: register_fetched(url)
+    A->>B: report_completion(task)
+    B->>M: on_task_completed(task)
+    B->>M: on_urls_discovered(new_urls)
+----
+
+== Multi-Machine Distributed Architecture
+
+[source,mermaid]
+----
+graph TB
+    subgraph "Load Balancer"
+        LB[Load Balancer<br/>Request Distribution]
+    end
+
+    subgraph "Machine Cluster A"
+        MA1[Node A1<br/>Agent Pool]
+        MA2[Node A2<br/>Agent Pool]
+        MA3[Node A3<br/>Agent Pool]
+    end
+
+    subgraph "Machine Cluster B"
+        MB1[Node B1<br/>Agent Pool]
+        MB2[Node B2<br/>Agent Pool]
+        MB3[Node B3<br/>Agent Pool]
+    end
+
+    subgraph "Shared Infrastructure"
+        subgraph "Message Queue"
+            MQ[RabbitMQ/Kafka<br/>Task Distribution]
+        end
+
+        subgraph "Distributed State"
+            Redis[(Redis Cluster<br/>Registry & Frontier)]
+            Postgres[(PostgreSQL<br/>URL State & Metadata)]
+        end
+
+        subgraph "Monitoring"
+            Metrics[Metrics Collection<br/>Prometheus/Grafana]
+            Logs[Centralized Logging<br/>ELK Stack]
+        end
+    end
+
+    LB --> MA1
+    LB --> MA2
+    LB --> MA3
+    LB --> MB1
+    LB --> MB2
+    LB --> MB3
+
+    MA1 --> MQ
+    MA2 --> MQ
+    MA3 --> MQ
+    MB1 --> MQ
+    MB2 --> MQ
+    MB3 --> MQ
+
+    MA1 --> Redis
+    MA2 --> Redis
+    MA3 --> Redis
+    MB1 --> Redis
+    MB2 --> Redis
+    MB3 --> Redis
+
+    MA1 --> Postgres
+    MA2 --> Postgres
+    MA3 --> Postgres
+    MB1 --> Postgres
+    MB2 --> Postgres
+    MB3 --> Postgres
+
+    MA1 --> Metrics
+    MA2 --> Metrics
+    MA3 --> Metrics
+    MB1 --> Metrics
+    MB2 --> Metrics
+    MB3 --> Metrics
+----
+
+== Core Library Components Analysis
+
+=== Project Structure
+
+**Project Type**: A modular, production-quality web crawler written in Rust +
+**Main Components**: Core library (`src/lib.rs`) with CLI binary (`src/bin/main.rs`)
+
+**Directory Structure**:
+----
+src/
+├── lib.rs                    # Main library entry point
+├── bin/main.rs              # CLI application entry point
+├── components/              # Core crawler components
+│   ├── canonicalizer.rs     # URL normalization
+│   ├── extractor.rs         # HTML link extraction
+│   ├── fetcher.rs           # HTTP content fetching
+│   ├── frontier.rs          # Task queue management
+│   ├── monitor.rs           # Progress monitoring & output
+│   ├── policy.rs            # Crawling rules & filtering
+│   └── registry.rs          # URL deduplication tracking
+├── orchestration/           # System coordination
+│   ├── agent.rs             # Stateless worker agents
+│   ├── broker.rs            # Task distribution (actor pattern)
+│   └── engine.rs            # System initialization & lifecycle
+├── types.rs                 # Shared data structures
+└── error.rs                 # Error handling
+----
+
+=== Component Details
+
+==== Fetcher (`src/components/fetcher.rs`)
+- **Purpose**: HTTP content retrieval with retry logic
+- **Implementations**:
+  * `ReqwestFetcher`: Production HTTP client with exponential backoff
+  * `NoopFetcher`: Testing/development mock
+- **Features**:
+  * Configurable timeouts, retries, User-Agent
+  * Content-Type filtering (only processes `text/html`)
+  * Automatic retry on 429 and 5xx errors
+  * Returns `FetchedContent` with URL, status code, and body
+
+==== Extractor (`src/components/extractor.rs`)
+- **Purpose**: Parse HTML and extract absolute URLs from links
+- **Implementation**: `HtmlExtractor` using scraper crate
+- **Features**:
+  * Extracts `<a href>` attributes from HTML
+  * Resolves relative URLs against base URL
+  * Filters out non-crawlable links (javascript:, mailto:, tel:, data:, fragments)
+  * Returns absolute URLs ready for crawling
+
+==== Canonicalizer (`src/components/canonicalizer.rs`)
+- **Purpose**: Normalize URLs to prevent duplicate crawling
+- **Implementation**: `QueryCanonicalizer`
+- **Features**:
+  * Removes query parameters and fragments
+  * Can be disabled via configuration
+  * Helps reduce duplicate URL processing
+
+==== Policy (`src/components/policy.rs`)
+- **Purpose**: Enforce crawling rules and constraints
+- **Implementation**: `SimplePolicy`
+- **Features**:
+  * Maximum depth limiting
+  * Domain whitelist/blacklist with suffix matching
+  * Case-insensitive domain filtering
+  * Rejects URLs without valid hosts
+
+==== Registry (`src/components/registry.rs`)
+- **Purpose**: Track discovered and fetched URLs to prevent duplicates
+- **Implementation**: `InMemoryRegistry` using `DashMap` for thread-safety
+- **Features**:
+  * Thread-safe concurrent access
+  * Tracks URL status: Discovered → Fetched
+  * Bulk registration with filtering of new URLs
+  * Status tracking and metrics
+
+==== Frontier (`src/components/frontier.rs`)
+- **Purpose**: Task queue management and scheduling
+- **Implementation**: `BfsFrontier` using `VecDeque`
+- **Features**:
+  * FIFO scheduling (breadth-first search)
+  * Simple add/pop interface
+  * Easily replaceable for different scheduling strategies
+
+==== Monitor (`src/components/monitor.rs`)
+- **Purpose**: Progress tracking and output generation
+- **Implementations**:
+  * `ConsoleMonitor`: Real-time console output
+  * `ProgressMonitor`: Periodic statistics reporting
+  * `SavingMonitor`: JSON Lines file output
+  * `MultiMonitor`: Composite pattern for multiple monitors
+- **Features**:
+  * Real-time progress reporting
+  * JSON Lines export format
+  * Extensible monitoring system
+
+=== Orchestration Architecture
+
+==== Engine (`src/orchestration/engine.rs`)
+- **Purpose**: System initialization and lifecycle management
+- **Features**:
+  * Coordinates all components during startup
+  * Initializes broker and shared registry
+  * Manages system shutdown
+  * Provides component access to other parts of the system
+
+==== Agent (`src/orchestration/agent.rs`)
+- **Purpose**: Stateless worker that processes crawl tasks
+- **Architecture**: Each agent owns instances of: Fetcher, Extractor, Canonicalizer, Policy
+- **Process Flow**:
+  1. Request task from broker
+  2. Fetch content using Fetcher
+  3. Extract links using Extractor
+  4. Canonicalize URLs using Canonicalizer
+  5. Filter URLs using Policy
+  6. Register new URLs in shared Registry
+  7. Submit new tasks to broker
+  8. Report completion
+
+==== Broker (`src/orchestration/broker.rs`)
+- **Purpose**: Centralized task distribution using actor pattern
+- **Architecture**:
+  * `CrawlBrokerService`: Client interface (cloneable)
+  * `BrokerWorker`: Single worker thread processing MPSC commands
+- **Features**:
+  * Thread-safe task distribution
+  * Coordinates frontier access
+  * Handles task completion events
+  * Enforces page limits
+  * Monitors system shutdown
+
+== Distributed/Multi-Machine Architecture Potential
+
+The architecture demonstrates excellent **separation of concerns** that would support distributed deployment:
+
+=== Current Multi-Threading Support
+- Multiple concurrent agents (workers) within single process
+- Thread-safe shared registry using `DashMap`
+- Actor-pattern broker for coordination
+
+=== Distributed Extension Points
+
+==== Registry Abstraction
+The `Registry` trait could be implemented with:
+- Redis/PostgreSQL for shared state across machines
+- Distributed consensus for URL deduplication
+- Sharding strategies for large-scale crawling
+
+==== Broker Abstraction
+Current MPSC channels could be replaced with:
+- Message queues (RabbitMQ, Apache Kafka)
+- Distributed task queues (Redis, AWS SQS)
+- Service mesh communication
+
+==== Frontier Distribution
+The `Frontier` trait enables:
+- Distributed priority queues
+- Site-specific task routing
+- Load balancing across machines
+
+==== Component Isolation
+Each component is:
+- Stateless (except Registry)
+- Independently configurable
+- Easily mockable for testing
+
+=== Distributed Deployment Scenario
+
+----
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Machine A     │    │   Machine B     │    │   Machine C     │
+│ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
+│ │ Agent Pool  │ │    │ │ Agent Pool  │ │    │ │ Agent Pool  │ │
+│ └─────────────┘ │    │ └─────────────┘ │    │ └─────────────┘ │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+        │                       │                       │
+        └───────────────────────┼───────────────────────┘
+                                │
+                ┌───────────────────────────┐
+                │   Shared Infrastructure   │
+                │  ┌─────────────────────┐  │
+                │  │ Distributed Registry│  │
+                │  │    (Redis/Postgres) │  │
+                │  └─────────────────────┘  │
+                │  ┌─────────────────────┐  │
+                │  │ Message Queue       │  │
+                │  │  (RabbitMQ/Kafka)   │  │
+                │  └─────────────────────┘  │
+                └───────────────────────────┘
+----
+
+=== Multi-Machine Deployment Strategies
+
+The current architecture's trait-based design enables seamless distributed deployment:
+
+**Registry Distribution**: Replace `InMemoryRegistry` with Redis-based implementation for shared URL state across machines.
+
+**Task Distribution**: Replace MPSC channels in `Broker` with message queues (RabbitMQ/Kafka) for cross-machine task distribution.
+
+**Frontier Scaling**: Implement distributed frontier with site-specific routing and load balancing strategies.
+
+**Component Isolation**: Each component is stateless (except Registry), making horizontal scaling straightforward.
+
+== Key Architectural Strengths
+
+1. **Modularity**: Clean separation of concerns with trait-based interfaces
+2. **Testability**: Trait-based design enables easy mocking and unit testing
+3. **Concurrency**: Thread-safe design with proper synchronization primitives
+4. **Extensibility**: New implementations can be plugged in without changing core logic
+5. **Observability**: Comprehensive logging and monitoring capabilities
+6. **Graceful Shutdown**: Proper resource cleanup and coordinated shutdown
+7. **Error Handling**: Structured error types with retry logic for transient failures
+
+This architecture demonstrates production-quality design patterns that could scale from single-machine crawling to distributed web-scale operations with appropriate infrastructure backends.

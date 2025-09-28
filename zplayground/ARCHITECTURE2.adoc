@@ -1,0 +1,84 @@
+Spyydr splits the crawler into small, well-defined components connected by an Engine orchestrator:
+
+Engine — the conductor; enforces limits, concurrency, and flow.
+
+Frontier — a queue of crawl requests (e.g., BFS), with backpressure.
+
+Fetcher — HTTP client with timeouts/retries/backoff.
+
+Parser — extracts and resolves links from HTML.
+
+Policy — gates discovery/fetch (whitelist/blacklist/depth).
+
+Canonicalizer — normalizes URLs to reduce duplicates.
+
+Registry — fast deduplication of URLs.
+
+RateLimiter — politeness control (global, per-host later).
+
+Reporter — output events (stdout or JSON), plus final stats.
+
+Types/Error — shared models and error handling.
+
+
+
+
+           ┌──────────────┐       (seed)
+           │    Engine    │────────────────────────────┐
+           └──────┬───────┘                              │
+                  │ push                                 │
+                  ▼                                      │
+            ┌────────────┐      pop      ┌──────────────┐
+            │  Frontier  │◀──────────────│   Engine     │
+            └────────────┘               └──────┬───────┘
+                                                │ (bounded concurrency + rate limiting)
+                                                ▼
+                                        ┌──────────────┐
+                                   ┌───▶│ RateLimiter  │───┐
+                                   │    └──────┬───────┘   │
+                                   │           │ acquire   │
+                                   │           ▼           │
+                                   │    ┌──────────────┐   │
+                                   │    │   Policy     │   │ allow_fetch?
+                                   │    └──────┬───────┘   │
+                                   │           │           │
+                                   │           ▼           │
+                                   │    ┌──────────────┐   │ fetch()
+                                   │    │   Fetcher    │───┘
+                                   │    └──────┬───────┘
+                                   │           │ Page / Err
+                                   │           ▼
+                                   │    ┌──────────────┐
+                                   │    │   Parser     │───► Links
+                                   │    └──────┬───────┘
+                                   │           │
+                                   │           ▼
+                                   │    ┌──────────────┐  canonicalize()
+                                   │    │ Canonicalizer│───────────────┐
+                                   │    └──────┬───────┘               │
+                                   │           │                        │
+                                   │           ▼                        │
+                                   │    ┌──────────────┐ mark_seen()    │
+                                   │    │  Registry  │──────────────┐ │
+                                   │    └──────┬───────┘              │ │
+                                   │           │ new?                  │ │
+                                   │           ▼                       │ │ push
+                                   │    ┌──────────────┐ allow_disc.?  │ │
+                                   └───▶│   Policy     │───────────────┘ │
+                                        └──────┬───────┘                 │
+                                               │                         │
+                                               ▼                         │
+                                        ┌────────────┐                  │
+                                        │  Frontier  │◀─────────────────┘
+                                        └────────────┘
+
+                         ┌──────────────┐
+                         │   Reporter   │◀── Engine: on_visit/on_skip/on_error/on_done
+                         └──────────────┘
+
+
+push almost everything into stateless workers, and keep only:
+- Frontier (stateful queue of CrawlTask)
+- Registry (stateful URL lifecycle: Discovered → Fetched)
+
+Everything else is pure (Fetcher, Extractor, Canonicalizer, Policy, RateLimiter).
