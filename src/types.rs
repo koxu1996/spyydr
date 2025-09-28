@@ -1,3 +1,4 @@
+use std::time::{Duration, SystemTime};
 use url::Url;
 
 /// Content fetched from a URL.
@@ -53,4 +54,91 @@ pub enum RegistryError {
   NotFound { key: String },
   #[error("Invalid operation: {message}")]
   InvalidOperation { message: String },
+}
+
+/// Configuration for rate limiting service.
+#[derive(Debug, Clone)]
+pub struct RateLimitConfig {
+  pub requests_per_second_per_host: f64,
+  pub burst_size: u32,
+  pub enable_retry_after: bool,
+  pub max_backoff_delay: Duration,
+  pub inactive_host_ttl: Duration,
+}
+
+impl Default for RateLimitConfig {
+  fn default() -> Self {
+    Self {
+      requests_per_second_per_host: 1.0,
+      burst_size: 5,
+      enable_retry_after: true,
+      max_backoff_delay: Duration::from_secs(300),
+      inactive_host_ttl: Duration::from_secs(3600),
+    }
+  }
+}
+
+/// Per-host rate limiting state.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct HostRateLimitState {
+  pub last_request: SystemTime,
+  pub tokens: f64,
+  pub tokens_per_second: f64,
+  pub burst_size: u32,
+  pub retry_after_until: Option<SystemTime>,
+}
+
+impl HostRateLimitState {
+  pub fn new(requests_per_second: f64, burst_size: u32) -> Self {
+    Self {
+      last_request: SystemTime::now(),
+      tokens: burst_size as f64,
+      tokens_per_second: requests_per_second,
+      burst_size,
+      retry_after_until: None,
+    }
+  }
+
+  /// Calculate delay needed before next request and update token bucket state.
+  pub fn calculate_delay(&mut self, now: SystemTime) -> Duration {
+    // Check retry-after first
+    if let Some(retry_until) = self.retry_after_until {
+      if now < retry_until {
+        return retry_until.duration_since(now).unwrap_or_default();
+      } else {
+        self.retry_after_until = None;
+      }
+    }
+
+    // Replenish tokens based on time elapsed
+    self.replenish_tokens(now);
+
+    // Try to consume a token
+    if self.tokens >= 1.0 {
+      self.tokens -= 1.0;
+      Duration::ZERO
+    } else {
+      // Calculate delay needed to get one token
+      let tokens_needed = 1.0 - self.tokens;
+      Duration::from_secs_f64(tokens_needed / self.tokens_per_second)
+    }
+  }
+
+  fn replenish_tokens(&mut self, now: SystemTime) {
+    let elapsed = now.duration_since(self.last_request).unwrap_or_default();
+    let new_tokens = elapsed.as_secs_f64() * self.tokens_per_second;
+    self.tokens = (self.tokens + new_tokens).min(self.burst_size as f64);
+    self.last_request = now;
+  }
+}
+
+/// Errors that can occur during rate limiting operations.
+#[derive(Debug, thiserror::Error)]
+pub enum RateLimitError {
+  #[error("Registry error: {0}")]
+  Registry(#[from] RegistryError),
+  #[error("Service communication failed")]
+  Communication,
+  #[error("Service shutdown")]
+  Shutdown,
 }
