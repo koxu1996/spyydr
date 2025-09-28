@@ -75,6 +75,10 @@ pub struct Cli {
   /// Maximum number of pages to fetch before stopping
   #[arg(long)]
   pub max_pages: Option<usize>,
+
+  /// Maximum requests per second per host (rate limiting)
+  #[arg(long, default_value_t = 1.0)]
+  pub rate_limit_rps: f64,
 }
 
 /// Checks that the number of agents is a positive integer.

@@ -8,6 +8,8 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 use spyydr::components::{canonicalizer, extractor, fetcher, frontier, monitor, policy, registry};
+use spyydr::services::rate_limiter::RateLimiterService;
+use spyydr::types::RateLimitConfig;
 
 use crate::cli::Cli;
 
@@ -39,6 +41,15 @@ async fn main() -> eyre::Result<()> {
   // Create engine components.
   let frontier = frontier::BfsFrontier::default();
   let registry = Arc::new(registry::InMemoryRegistry::new());
+
+  // Create rate limiter service
+  let rate_limit_config = RateLimitConfig {
+    requests_per_second_per_host: args.rate_limit_rps,
+    ..Default::default()
+  };
+  let rate_limiter = Arc::new(RateLimiterService::new(registry.clone(), rate_limit_config));
+  tracing::info!("Rate limiter configured: {} RPS per host", args.rate_limit_rps);
+
   let (monitor, progress_monitor_handle) = create_monitor(args.clone(), shutdown.clone());
   let max_tasks_processed = args.max_pages;
   let mut engine = spyydr::orchestration::engine::Engine::new(
@@ -63,6 +74,7 @@ async fn main() -> eyre::Result<()> {
     let args = args.clone();
     let registry = registry.clone();
     let broker_svc = broker_svc.clone();
+    let rate_limiter = rate_limiter.clone();
     let shutdown = shutdown.clone();
 
     // Spawn agent handle.
@@ -81,6 +93,7 @@ async fn main() -> eyre::Result<()> {
         policy,
         registry,
         broker_svc,
+        rate_limiter,
       );
 
       // Run agent until shutdown signal is received.

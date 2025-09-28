@@ -8,6 +8,7 @@ use crate::components::policy::Policy;
 use crate::components::registry::Registry;
 use crate::error::Error;
 use crate::orchestration::broker::CrawlBrokerService;
+use crate::services::rate_limiter::RateLimiterService;
 use crate::types::CrawlTask;
 
 pub struct Agent<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> {
@@ -20,9 +21,11 @@ pub struct Agent<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Regis
   registry: Arc<R>,
   /// Interface to the broker service (task orchestration).
   broker_svc: CrawlBrokerService,
+  /// Rate limiter service for coordinated rate limiting across agents.
+  rate_limiter: Arc<RateLimiterService<R>>,
 }
 
-impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F, E, C, P, R> {
+impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry + 'static> Agent<F, E, C, P, R> {
   pub fn new(
     fetcher: F,
     extractor: E,
@@ -30,6 +33,7 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
     policy: P,
     registry: Arc<R>,
     broker_svc: CrawlBrokerService,
+    rate_limiter: Arc<RateLimiterService<R>>,
   ) -> Self {
     tracing::info!("Initializing new Agent instance");
     Agent {
@@ -39,6 +43,7 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
       policy,
       registry,
       broker_svc,
+      rate_limiter,
     }
   }
 
@@ -67,12 +72,26 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> Agent<F
     let task_url = task.url.clone();
     let task_depth = task.depth;
 
+    // Apply rate limiting before fetching
+    let host = task_url.host_str().unwrap_or("unknown").to_string();
+    let delay = self.rate_limiter.acquire_permit(host.clone()).await
+      .map_err(|e| Error::Unexpected(format!("Rate limiter error: {}", e)))?;
+
+    if delay > std::time::Duration::ZERO {
+      tracing::info!("Rate limiting: waiting {:?} for host {}", delay, host);
+      tokio::time::sleep(delay).await;
+    }
+
     let fetched_content = self.fetcher.fetch(&task_url).await?;
     tracing::info!(
       "Fetched content from {} with status: {}",
       fetched_content.url,
       fetched_content.status
     );
+
+    // Record response for rate limiting (especially 429 responses)
+    self.rate_limiter.record_response(host, fetched_content.status, None).await
+      .map_err(|e| Error::Unexpected(format!("Rate limiter error: {}", e)))?;
 
     // Mark item as visited in the registry.
     self.registry.mark_fetched(&task_url);
