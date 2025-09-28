@@ -1,0 +1,145 @@
+= Spyydr Development Roadmap
+:toc:
+:toclevels: 2
+:numbered:
+
+== Mission
+
+Transform Spyydr from a demonstration project into a production-ready, widely-adopted web crawler that competes with market leaders while maintaining its architectural excellence.
+
+== Phase 1: Production Foundation (Priority: CRITICAL)
+
+=== 1. robots.txt Compliance
+**Status**: Not Started +
+**Priority**: HIGHEST +
+**Estimated Effort**: 3-4 weeks +
+**Blocking**: All production deployments
+
+==== Problem Statement
+Currently, Spyydr ignores robots.txt files entirely, making it unsuitable for production use. This creates legal, ethical, and operational risks for any team attempting to deploy Spyydr in real-world scenarios.
+
+==== Solution Overview
+Implement comprehensive robots.txt support that fetches, parses, and enforces robot exclusion rules on a per-domain basis.
+
+==== Key Components
+* **robots.txt Fetcher**: Download and cache robots.txt files per domain
+* **Parser**: Parse robots.txt syntax including User-agent, Disallow, Allow, Crawl-delay
+* **Policy Integration**: Extend existing Policy trait to respect robot rules
+* **Registry Enhancement**: Track per-domain robot metadata
+* **Configuration**: Allow robots.txt compliance to be toggled (default: enabled)
+
+==== Success Criteria
+* ✅ Respects Disallow directives for specified user agents
+* ✅ Honors Crawl-delay directives with per-domain timing
+* ✅ Handles malformed robots.txt files gracefully
+* ✅ Caches robots.txt to avoid repeated requests
+* ✅ Configurable user-agent matching
+
+==== Business Impact
+* **Immediate**: Enables production deployments
+* **Risk Mitigation**: Eliminates legal/ethical concerns
+* **Market Position**: Achieves baseline feature parity with competitors
+
+---
+
+=== 2. Host Rate Limiting & Retry-After Support
+**Status**: Not Started +
+**Priority**: HIGHEST +
+**Estimated Effort**: 2-3 weeks +
+**Blocking**: Responsible crawler behavior
+
+==== Problem Statement
+Spyydr currently has no per-host rate limiting and ignores HTTP 429 Retry-After headers. This can overwhelm target servers and get crawlers blocked or banned.
+
+==== Solution Overview
+Implement intelligent per-host rate limiting that respects server signals and prevents crawler abuse.
+
+==== Key Components
+* **Rate Limiter**: Per-domain request throttling with configurable limits
+* **Retry-After Handler**: Parse and respect HTTP 429 Retry-After headers
+* **Backoff Strategy**: Exponential backoff for failed requests
+* **Host Queue Management**: Separate request queues per domain
+* **Configuration**: Configurable default delays and maximum rates
+
+==== Technical Approach
+* Extend existing `Fetcher` trait with rate limiting capabilities
+* Add per-domain state tracking in shared registry
+* Implement token bucket or sliding window rate limiting
+* Parse Retry-After headers (both delay-seconds and HTTP-date formats)
+
+==== Success Criteria
+* ✅ Configurable requests per second per domain
+* ✅ Automatic Retry-After header compliance
+* ✅ Exponential backoff on server errors (5xx)
+* ✅ Graceful handling of rate limit responses (429)
+* ✅ Domain-specific delay configuration override
+
+==== Business Impact
+* **Server Respect**: Prevents overwhelming target websites
+* **Crawler Longevity**: Reduces chance of IP bans
+* **Production Ready**: Essential for responsible large-scale crawling
+
+== Phase 2: Modern Web Support (Priority: HIGH)
+
+=== 3. JavaScript Rendering Engine
+**Status**: Not Started +
+**Priority**: High +
+**Estimated Effort**: 6-8 weeks
+
+==== Problem Statement
+Modern websites increasingly rely on JavaScript to load content. Spyydr currently only processes static HTML, missing dynamic content on 70%+ of modern websites.
+
+==== Solution Overview
+Integrate headless browser rendering for JavaScript-heavy sites while maintaining performance for static sites.
+
+==== Key Features
+* Smart JS detection (only render when necessary)
+* Headless Chrome/Chromium integration
+* Configurable rendering timeouts
+* Resource blocking (images, ads) for performance
+
+== Phase 3: Enterprise Scale (Priority: MEDIUM)
+
+=== 4. Distributed Storage Backends
+**Status**: Not Started +
+**Priority**: Medium +
+**Estimated Effort**: 4-6 weeks
+
+==== Problem Statement
+Current in-memory registry prevents distributed deployment and crash recovery.
+
+==== Solution Overview
+Implement pluggable storage backends for distributed crawling scenarios.
+
+==== Key Features
+* Redis backend for high-performance distributed crawling
+* PostgreSQL backend for persistent metadata storage
+* Migration tools and deployment guides
+
+== Success Metrics
+
+=== Phase 1 Targets
+* **Production Adoption**: 5+ companies using Spyydr in production
+* **Community Growth**: 25% increase in GitHub stars
+* **Issue Resolution**: Zero "can't use in production" issues
+
+=== Phase 2 Targets
+* **Modern Web Support**: Successfully crawl top 100 SPA websites
+* **Performance**: Maintain <2x performance penalty for JS rendering
+* **Community**: 50% increase in GitHub stars
+
+=== Phase 3 Targets
+* **Enterprise Adoption**: 3+ large-scale distributed deployments
+* **Ecosystem**: Kubernetes operator and cloud deployment guides
+* **Performance**: Handle 1M+ URL crawls with distributed setup
+
+== Contributing
+
+This roadmap prioritizes features based on:
+
+1. **User Impact**: How many users are blocked by missing features
+2. **Market Position**: Competitive necessity for adoption
+3. **Technical Risk**: Implementation complexity and maintenance burden
+4. **Strategic Value**: Long-term positioning and differentiation
+
+For feature requests and roadmap feedback, please open GitHub issues with the `roadmap` label.
