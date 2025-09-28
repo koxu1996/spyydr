@@ -142,3 +142,61 @@ pub enum RateLimitError {
   #[error("Service shutdown")]
   Shutdown,
 }
+
+/// Configuration for robots.txt service.
+#[derive(Debug, Clone)]
+pub struct RobotsTxtConfig {
+  pub enabled: bool,
+  pub user_agent: String,
+  pub cache_ttl: Duration,
+  pub fetch_timeout: Duration,
+}
+
+impl Default for RobotsTxtConfig {
+  fn default() -> Self {
+    Self {
+      enabled: true,
+      user_agent: "SpyydrBot/1.0".to_string(),
+      cache_ttl: Duration::from_secs(24 * 60 * 60), // 24 hours
+      fetch_timeout: Duration::from_secs(10),
+    }
+  }
+}
+
+/// Cached robots.txt data for a host.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CachedRobotsTxt {
+  pub host: String,
+  pub content: Option<String>, // None if robots.txt was not found or invalid
+  pub fetched_at: SystemTime,
+}
+
+impl CachedRobotsTxt {
+  pub fn new(host: String, content: Option<String>) -> Self {
+    Self {
+      host,
+      content,
+      fetched_at: SystemTime::now(),
+    }
+  }
+
+  pub fn is_expired(&self, ttl: Duration) -> bool {
+    SystemTime::now()
+      .duration_since(self.fetched_at)
+      .unwrap_or_default()
+      > ttl
+  }
+}
+
+/// Errors that can occur during robots.txt operations.
+#[derive(Debug, thiserror::Error)]
+pub enum RobotsTxtError {
+  #[error("Registry error: {0}")]
+  Registry(#[from] RegistryError),
+  #[error("HTTP fetch error: {0}")]
+  Fetch(String),
+  #[error("Service communication failed")]
+  Communication,
+  #[error("Service shutdown")]
+  Shutdown,
+}

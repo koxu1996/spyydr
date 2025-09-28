@@ -4,19 +4,19 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::components::canonicalizer::Canonicalizer;
 use crate::components::extractor::Extractor;
 use crate::components::fetcher::Fetcher;
-use crate::components::policy::Policy;
+use crate::components::policy::AsyncPolicy;
 use crate::components::registry::Registry;
 use crate::error::Error;
 use crate::orchestration::broker::CrawlBrokerService;
 use crate::services::rate_limiter::RateLimiterService;
 use crate::types::CrawlTask;
 
-pub struct Agent<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry> {
+pub struct Agent<F: Fetcher, E: Extractor, C: Canonicalizer, AP: AsyncPolicy, R: Registry> {
   /// Stateless components.
   fetcher: F,
   extractor: E,
   canonicalizer: C,
-  policy: P,
+  async_policy: AP,
   /// Single shared registry for all agents.
   registry: Arc<R>,
   /// Interface to the broker service (task orchestration).
@@ -25,12 +25,12 @@ pub struct Agent<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Regis
   rate_limiter: Arc<RateLimiterService<R>>,
 }
 
-impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry + 'static> Agent<F, E, C, P, R> {
+impl<F: Fetcher, E: Extractor, C: Canonicalizer, AP: AsyncPolicy, R: Registry + 'static> Agent<F, E, C, AP, R> {
   pub fn new(
     fetcher: F,
     extractor: E,
     canonicalizer: C,
-    policy: P,
+    async_policy: AP,
     registry: Arc<R>,
     broker_svc: CrawlBrokerService,
     rate_limiter: Arc<RateLimiterService<R>>,
@@ -40,7 +40,7 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry + 'stati
       fetcher,
       extractor,
       canonicalizer,
-      policy,
+      async_policy,
       registry,
       broker_svc,
       rate_limiter,
@@ -107,21 +107,18 @@ impl<F: Fetcher, E: Extractor, C: Canonicalizer, P: Policy, R: Registry + 'stati
       .collect::<Result<Vec<_>, _>>()?;
     tracing::debug!("Canonicalized {} links", canonical_links.len());
 
-    // Check against the policy.
+    // Check against the async policy.
     let child_depth = task_depth + 1;
-    let admitted_links = canonical_links
-      .iter()
-      .filter_map(|child_link| {
-        let verdict = self.policy.evaluate(child_link, &task_url, child_depth);
-        if verdict.allowed {
-          tracing::debug!("Link allowed: {}", child_link);
-          Some(child_link.clone())
-        } else {
-          tracing::warn!("Link {} denied by policy: {}", child_link, verdict.reason);
-          None
-        }
-      })
-      .collect::<Vec<_>>();
+    let mut admitted_links = Vec::new();
+    for child_link in &canonical_links {
+      let verdict = self.async_policy.evaluate(child_link, &task_url, child_depth).await;
+      if verdict.allowed {
+        tracing::debug!("Link allowed: {}", child_link);
+        admitted_links.push(child_link.clone());
+      } else {
+        tracing::warn!("Link {} denied by policy: {}", child_link, verdict.reason);
+      }
+    }
 
     // Put admitted links into the registry.
     let new_links = self.registry.register_many(admitted_links.iter());

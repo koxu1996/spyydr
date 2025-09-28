@@ -79,6 +79,18 @@ pub struct Cli {
   /// Maximum requests per second per host (rate limiting)
   #[arg(long, default_value_t = 1.0)]
   pub rate_limit_rps: f64,
+
+  /// Respect robots.txt files when crawling
+  #[arg(long, default_value_t = true)]
+  pub respect_robots_txt: bool,
+
+  /// User-Agent to use for robots.txt checks (defaults to main user-agent)
+  #[arg(long)]
+  pub robots_txt_user_agent: Option<String>,
+
+  /// Cache TTL for robots.txt files in seconds
+  #[arg(long, default_value_t = 86400)] // 24 hours
+  pub robots_txt_cache_ttl: u64,
 }
 
 /// Checks that the number of agents is a positive integer.

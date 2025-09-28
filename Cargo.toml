@@ -42,6 +42,9 @@ serde_json = { version = "1.0.143", default-features = false, features = ["std"]
 # URL parsing.
 url = { version = "2.5.6", default-features = false, features = [] }
 
+# Robots.txt parsing.
+texting_robots = { version = "0.2.2", default-features = false, features = [] }
+
 [dev-dependencies]
 
 # Mocking HTTP server.

@@ -9,7 +9,8 @@ use tracing_subscriber::util::SubscriberInitExt;
 
 use spyydr::components::{canonicalizer, extractor, fetcher, frontier, monitor, policy, registry};
 use spyydr::services::rate_limiter::RateLimiterService;
-use spyydr::types::RateLimitConfig;
+use spyydr::services::robots_txt::RobotsTxtService;
+use spyydr::types::{RateLimitConfig, RobotsTxtConfig};
 
 use crate::cli::Cli;
 
@@ -50,6 +51,17 @@ async fn main() -> eyre::Result<()> {
   let rate_limiter = Arc::new(RateLimiterService::new(registry.clone(), rate_limit_config));
   tracing::info!("Rate limiter configured: {} RPS per host", args.rate_limit_rps);
 
+  // Create robots.txt service
+  let robots_txt_config = RobotsTxtConfig {
+    enabled: args.respect_robots_txt,
+    user_agent: args.robots_txt_user_agent.clone().unwrap_or_else(|| args.user_agent.clone()),
+    cache_ttl: std::time::Duration::from_secs(args.robots_txt_cache_ttl),
+    fetch_timeout: std::time::Duration::from_secs(args.request_timeout),
+  };
+  let robots_txt_service = Arc::new(RobotsTxtService::new(registry.clone(), robots_txt_config.clone()));
+  tracing::info!("Robots.txt service configured: enabled={}, user_agent={}",
+    robots_txt_config.enabled, robots_txt_config.user_agent);
+
   let (monitor, progress_monitor_handle) = create_monitor(args.clone(), shutdown.clone());
   let max_tasks_processed = args.max_pages;
   let mut engine = spyydr::orchestration::engine::Engine::new(
@@ -75,6 +87,7 @@ async fn main() -> eyre::Result<()> {
     let registry = registry.clone();
     let broker_svc = broker_svc.clone();
     let rate_limiter = rate_limiter.clone();
+    let robots_txt_service = robots_txt_service.clone();
     let shutdown = shutdown.clone();
 
     // Spawn agent handle.
@@ -83,14 +96,14 @@ async fn main() -> eyre::Result<()> {
       let fetcher = create_fetcher(&args);
       let extractor = create_extractor(&args);
       let canonicalizer = create_canonicalizer(&args);
-      let policy = create_policy(&args);
+      let async_policy = create_robots_txt_policy(&args, robots_txt_service);
 
       // Construct agent.
       let agent = spyydr::orchestration::agent::Agent::new(
         fetcher,
         extractor,
         canonicalizer,
-        policy,
+        async_policy,
         registry,
         broker_svc,
         rate_limiter,
@@ -149,12 +162,17 @@ fn create_canonicalizer(args: &Cli) -> impl canonicalizer::Canonicalizer {
   canonicalizer::QueryCanonicalizer::new(enabled)
 }
 
-fn create_policy(args: &Cli) -> impl policy::Policy {
-  policy::SimplePolicy::new(
+fn create_robots_txt_policy(
+  args: &Cli,
+  robots_txt_service: Arc<RobotsTxtService<registry::InMemoryRegistry>>,
+) -> policy::RobotsTxtPolicy<registry::InMemoryRegistry> {
+  let simple_policy = policy::SimplePolicy::new(
     args.max_depth,
     args.whitelist.clone(),
     args.blacklist.clone(),
-  )
+  );
+  let user_agent = args.robots_txt_user_agent.clone().unwrap_or_else(|| args.user_agent.clone());
+  policy::RobotsTxtPolicy::new(simple_policy, robots_txt_service, user_agent)
 }
 
 fn create_monitor(
