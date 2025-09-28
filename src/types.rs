@@ -30,7 +30,7 @@ impl PolicyVerdict {
 }
 
 /// Status of a registry item.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum RegistryItemStatus {
   Discovered,
   Fetched,
@@ -42,4 +42,15 @@ pub struct CrawlTask {
   pub url: Url,
   pub depth: u32,
   pub parent: Option<Url>,
+}
+
+/// Errors that can occur during registry operations.
+#[derive(Debug, thiserror::Error)]
+pub enum RegistryError {
+  #[error("Serialization failed: {0}")]
+  Serialization(#[from] serde_json::Error),
+  #[error("State not found: {key}")]
+  NotFound { key: String },
+  #[error("Invalid operation: {message}")]
+  InvalidOperation { message: String },
 }

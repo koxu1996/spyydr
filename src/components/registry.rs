@@ -1,18 +1,54 @@
 use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
+use std::time::{Duration, Instant};
 use url::Url;
 
-use crate::types::RegistryItemStatus;
+use crate::types::{RegistryError, RegistryItemStatus};
 
-pub trait Registry {
+pub trait Registry: Send + Sync {
+  // Generic state operations
+  fn get<T>(&self, key: &str) -> Result<Option<T>, RegistryError>
+  where
+    T: for<'de> Deserialize<'de>;
+
+  fn set<T>(&self, key: &str, value: &T) -> Result<(), RegistryError>
+  where
+    T: Serialize;
+
+  fn set_with_ttl<T>(&self, key: &str, value: &T, ttl: Duration) -> Result<(), RegistryError>
+  where
+    T: Serialize;
+
+  fn remove(&self, key: &str) -> Result<bool, RegistryError>;
+
+  // URL-specific convenience methods (implemented on top of generic storage)
   /// Insert as Discovered. Returns true if it was not present before.
-  fn register(&self, url: &Url) -> bool;
+  fn register(&self, url: &Url) -> bool {
+    let key = format!("url:{}", url.as_str());
+    let current: Option<RegistryItemStatus> = self.get(&key).unwrap_or(None);
+    if current.is_none() {
+      let _ = self.set(&key, &RegistryItemStatus::Discovered);
+      true
+    } else {
+      false
+    }
+  }
 
   /// Mark as Fetched. Returns true if it changed from Discovered -> Fetched.
   /// If it wasn't present, you may choose to insert as Fetched; here we do.
-  fn mark_fetched(&self, url: &Url) -> bool;
+  fn mark_fetched(&self, url: &Url) -> bool {
+    let key = format!("url:{}", url.as_str());
+    let current: Option<RegistryItemStatus> = self.get(&key).unwrap_or(None);
+    let was_different = current != Some(RegistryItemStatus::Fetched);
+    let _ = self.set(&key, &RegistryItemStatus::Fetched);
+    was_different
+  }
 
   /// Current status if tracked.
-  fn status(&self, url: &Url) -> Option<RegistryItemStatus>;
+  fn status(&self, url: &Url) -> Option<RegistryItemStatus> {
+    let key = format!("url:{}", url.as_str());
+    self.get(&key).unwrap_or(None)
+  }
 
   /// Register many URLs as discovered and return those that were newly added.
   fn register_many<'a, I>(&self, urls: I) -> Vec<Url>
@@ -36,23 +72,28 @@ pub trait Registry {
 /// Registry for a single-process crawl state.
 #[derive(Default)]
 pub struct InMemoryRegistry {
-  map: DashMap<String, RegistryItemStatus>,
+  // Unified storage for all state types: (data, expiry)
+  storage: DashMap<String, (Vec<u8>, Option<Instant>)>,
 }
 
 impl InMemoryRegistry {
   pub fn new() -> Self {
     Self {
-      map: DashMap::new(),
+      storage: DashMap::new(),
     }
   }
 
-  /// Optional helpers for metrics
+  /// Optional helpers for metrics (updated for unified storage)
   pub fn counts(&self) -> (usize, usize) {
     let (mut disc, mut fetch) = (0, 0);
-    for v in self.map.iter() {
-      match *v.value() {
-        RegistryItemStatus::Discovered => disc += 1,
-        RegistryItemStatus::Fetched => fetch += 1,
+    for entry in self.storage.iter() {
+      if entry.key().starts_with("url:") {
+        if let Ok(Some(status)) = self.get::<RegistryItemStatus>(entry.key()) {
+          match status {
+            RegistryItemStatus::Discovered => disc += 1,
+            RegistryItemStatus::Fetched => fetch += 1,
+          }
+        }
       }
     }
     (disc, fetch)
@@ -60,41 +101,50 @@ impl InMemoryRegistry {
 }
 
 impl Registry for InMemoryRegistry {
-  fn register(&self, url: &Url) -> bool {
-    // Insert returns old value if existed; we want to return true only if it was NEW.
-    match self.map.entry(url.as_str().to_owned()) {
-      dashmap::mapref::entry::Entry::Occupied(_) => false,
-      dashmap::mapref::entry::Entry::Vacant(v) => {
-        tracing::debug!(%url, "registering as discovered");
-        v.insert(RegistryItemStatus::Discovered);
-        true
-      }
-    }
-  }
+  fn get<T>(&self, key: &str) -> Result<Option<T>, RegistryError>
+  where
+    T: for<'de> Deserialize<'de>,
+  {
+    if let Some(entry) = self.storage.get(key) {
+      let (data, expiry) = entry.value();
 
-  fn mark_fetched(&self, url: &Url) -> bool {
-    use dashmap::mapref::entry::Entry;
-    match self.map.entry(url.as_str().to_owned()) {
-      Entry::Occupied(mut e) => {
-        if *e.get() != RegistryItemStatus::Fetched {
-          e.insert(RegistryItemStatus::Fetched);
-          tracing::debug!(%url, "marking as fetched");
-          true // Changed Discovered -> Fetched.
-        } else {
-          false // Already Fetched.
+      // Check TTL
+      if let Some(exp) = expiry {
+        if Instant::now() > *exp {
+          drop(entry); // Release read lock
+          self.storage.remove(key);
+          return Ok(None);
         }
       }
-      // This case should not normally happen, but we handle it anyway.
-      Entry::Vacant(v) => {
-        tracing::debug!(%url, "registering as fetched (was not present)");
-        v.insert(RegistryItemStatus::Fetched);
-        true // Newly inserted as Fetched
-      }
+
+      let value: T = serde_json::from_slice(data)?;
+      Ok(Some(value))
+    } else {
+      Ok(None)
     }
   }
 
-  fn status(&self, url: &Url) -> Option<RegistryItemStatus> {
-    self.map.get(url.as_str()).map(|v| *v.value())
+  fn set<T>(&self, key: &str, value: &T) -> Result<(), RegistryError>
+  where
+    T: Serialize,
+  {
+    let data = serde_json::to_vec(value)?;
+    self.storage.insert(key.to_string(), (data, None));
+    Ok(())
+  }
+
+  fn set_with_ttl<T>(&self, key: &str, value: &T, ttl: Duration) -> Result<(), RegistryError>
+  where
+    T: Serialize,
+  {
+    let data = serde_json::to_vec(value)?;
+    let expiry = Some(Instant::now() + ttl);
+    self.storage.insert(key.to_string(), (data, expiry));
+    Ok(())
+  }
+
+  fn remove(&self, key: &str) -> Result<bool, RegistryError> {
+    Ok(self.storage.remove(key).is_some())
   }
 }
 
@@ -198,5 +248,62 @@ mod tests {
     }
     // counts: three discovered, zero fetched
     assert_eq!(r.counts(), (3, 0));
+  }
+
+  // TDD: Test for new generic state functionality
+  #[test]
+  fn should_store_and_retrieve_generic_state() {
+    // Arrange
+    let registry = InMemoryRegistry::new();
+
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct TestState {
+      value: String,
+      count: u32,
+    }
+
+    let test_state = TestState {
+      value: "test".to_string(),
+      count: 42,
+    };
+
+    // Act
+    let result = registry.set("test_key", &test_state);
+    assert!(result.is_ok());
+
+    let retrieved: Option<TestState> = registry.get("test_key").unwrap();
+
+    // Assert
+    assert_eq!(retrieved, Some(test_state));
+  }
+
+  #[test]
+  fn should_return_none_for_nonexistent_key() {
+    // Arrange
+    let registry = InMemoryRegistry::new();
+
+    // Act
+    let result: Option<String> = registry.get("nonexistent").unwrap();
+
+    // Assert
+    assert_eq!(result, None);
+  }
+
+  #[test]
+  fn should_handle_ttl_expiration() {
+    // Arrange
+    let registry = InMemoryRegistry::new();
+    let test_value = "expiring_value".to_string();
+
+    // Act - set with very short TTL
+    registry.set_with_ttl("ttl_key", &test_value, Duration::from_millis(1)).unwrap();
+
+    // Wait for expiration
+    std::thread::sleep(Duration::from_millis(10));
+
+    let result: Option<String> = registry.get("ttl_key").unwrap();
+
+    // Assert
+    assert_eq!(result, None);
   }
 }
