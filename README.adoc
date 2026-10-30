@@ -31,7 +31,7 @@ Spyydr addresses the classic web crawling problem: given a starting URL, systema
 
 [source,bash]
 ----
-git clone https://gitlab.com/andrzej1_1/spyydr
+git clone https://github.com/koxu1996/spyydr
 cd spyydr
 cargo build --release
 ----

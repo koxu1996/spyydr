@@ -22,7 +22,7 @@ Spyydr 🕷️ - A simple yet powerful web crawler built in Rust.
 It starts from a seed URL, follows HTML links to discover new pages, and reports them.
 
 NOTE: This CLI is a minimal example built on modular crawler components."#,
-  after_help = "Project: https://gitlab.com/andrzej1_1/spyydr"
+  after_help = "Project: https://github.com/koxu1996/spyydr"
 )]
 pub struct Cli {
   /// Starting URL (seed) for the crawl.
@@ -36,7 +36,7 @@ pub struct Cli {
   /// User-Agent header.
   #[arg(
     long,
-    default_value = "SpyydrBot/1.0 (+https://gitlab.com/andrzej1_1/spyydr)"
+    default_value = "SpyydrBot/1.0 (+https://github.com/koxu1996/spyydr)"
   )]
   pub user_agent: String,
 
